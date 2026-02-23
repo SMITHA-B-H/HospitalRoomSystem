@@ -1,0 +1,78 @@
+/* ===== Page Background ===== */
+body {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.login-container {
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  /* Soft hospital theme gradient */
+  background: linear-gradient(135deg, #4facfe, #00f2fe);
+}
+
+/* ===== Login Card ===== */
+.login-box {
+  background: #ffffff;
+  padding: 40px;
+  width: 350px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  text-align: center;
+}
+
+/* ===== Title ===== */
+.login-box h2 {
+  margin-bottom: 25px;
+  color: #2c3e50;
+}
+
+/* ===== Inputs ===== */
+.login-box input {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 15px;
+
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  outline: none;
+
+  font-size: 14px;
+  transition: 0.3s;
+}
+
+.login-box input:focus {
+  border-color: #4facfe;
+  box-shadow: 0 0 5px rgba(79, 172, 254, 0.5);
+}
+
+/* ===== Button ===== */
+.login-box button {
+  width: 100%;
+  padding: 12px;
+
+  background: #4facfe;
+  border: none;
+  border-radius: 6px;
+
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.login-box button:hover {
+  background: #2f80ed;
+}
+
+/* ===== Small Text ===== */
+.login-footer {
+  margin-top: 15px;
+  font-size: 12px;
+  color: #777;
+}
