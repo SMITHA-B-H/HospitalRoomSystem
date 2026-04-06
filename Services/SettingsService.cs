@@ -1,8 +1,10 @@
 using HospitalRoomAPI.Repositories;
 using HospitalRoomAPI.DTOs;
+using HospitalRoomAPI.Data;
 using HospitalRoomAPI.Models;
 using HospitalRoomAPI.Models.Common;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;   // ✅ IMPORTANT
 
 namespace HospitalRoomAPI.Services
 {
@@ -10,15 +12,22 @@ namespace HospitalRoomAPI.Services
     {
         private readonly ISettingsRepository _repo;
         private readonly IDisplayService _display;
+        private readonly IFileStorageService _fileService;
+        private readonly AppDbContext _context;   // ✅ MOVED INSIDE CLASS
 
-        public SettingsService(ISettingsRepository repo, IDisplayService display)
+        public SettingsService(
+            ISettingsRepository repo,
+            IDisplayService display,
+            IFileStorageService fileService,
+            AppDbContext context)
         {
             _repo = repo;
             _display = display;
+            _fileService = fileService;
+            _context = context;   // ✅ ASSIGNED
         }
 
         // ================= SAVE SETTINGS =================
-
         public async Task<ApiResponse<object>> SaveSettings(SaveSettingsDto dto, int hospitalId)
         {
             var existing = await _repo.GetSettings(hospitalId, null, null);
@@ -39,7 +48,6 @@ namespace HospitalRoomAPI.Services
 
             var rooms = await _repo.GetRoomNumbers(null, null, hospitalId);
 
-            // 🔥 Optimized push (parallel)
             var tasks = rooms.Select(r => _display.PushRoomUpdate(r));
             await Task.WhenAll(tasks);
 
@@ -50,7 +58,6 @@ namespace HospitalRoomAPI.Services
         }
 
         // ================= GET DISPLAY SETTINGS =================
-
         public async Task<ApiResponse<object>> GetDisplaySettings(int roomId)
         {
             var room = await _repo.GetRoomWithDetails(roomId);
@@ -94,40 +101,39 @@ namespace HospitalRoomAPI.Services
         }
 
         // ================= UPLOAD LOGO =================
-
         public async Task<ApiResponse<string>> UploadLogo(IFormFile file, int hospitalId)
         {
-            var path = await _repo.UploadLogo(file, hospitalId);
+            var url = await _fileService.UploadAsync(file);
+
+            await _repo.SaveLogo(url, hospitalId);
 
             return new ApiResponse<string>
             {
-                Success = !string.IsNullOrEmpty(path),
-                Data = path
+                Success = !string.IsNullOrEmpty(url),
+                Data = url
             };
         }
 
         // ================= UPLOAD VIDEO =================
-
         public async Task<ApiResponse<string>> UploadVideo(UploadVideoDto dto, int hospitalId)
         {
-            var path = await _repo.UploadVideo(dto, hospitalId);
+            var url = await _fileService.UploadAsync(dto.File);
+
+            await _repo.SaveVideo(url, hospitalId, dto);
 
             var rooms = await _repo.GetRoomNumbers(null, null, hospitalId);
 
-            foreach (var room in rooms)
-            {
-                await _display.PushRoomUpdate(room);
-            }
+            var tasks = rooms.Select(r => _display.PushRoomUpdate(r));
+            await Task.WhenAll(tasks);
 
             return new ApiResponse<string>
             {
-                Success = !string.IsNullOrEmpty(path),
-                Data = path
+                Success = !string.IsNullOrEmpty(url),
+                Data = url
             };
         }
 
         // ================= DELETE VIDEO =================
-
         public async Task<ApiResponse<object>> DeleteVideo(string path, int hospitalId)
         {
             if (string.IsNullOrEmpty(path))
@@ -139,11 +145,13 @@ namespace HospitalRoomAPI.Services
                 };
             }
 
+            var fileId = ExtractFileId(path);
+
+            await _fileService.DeleteAsync(fileId);
             await _repo.DeleteVideo(path);
 
             var rooms = await _repo.GetRoomNumbers(null, null, hospitalId);
 
-            // 🔥 Optimized push
             var tasks = rooms.Select(r => _display.PushRoomUpdate(r));
             await Task.WhenAll(tasks);
 
@@ -151,6 +159,41 @@ namespace HospitalRoomAPI.Services
             {
                 Success = true
             };
+        }
+
+        // ✅ ================= MAIN FIX =================
+        public async Task<ApiResponse<object>> GetSettingsByHospital(int hospitalId)
+        {
+            var settings = await _repo.GetSettings(hospitalId, null, null);
+            var videos = await _repo.GetVideos(hospitalId, null, null);
+            var announcements = await _repo.GetAnnouncements(hospitalId, null, null);
+
+            // ✅ GET HOSPITAL NAME FROM TABLE
+            var hospital = await _context.Hospitals
+                .Where(h => h.Id == hospitalId)
+                .Select(h => new { h.Name })
+                .FirstOrDefaultAsync();
+
+            return new ApiResponse<object>
+            {
+                Success = true,
+                Data = new
+                {
+                    hospitalName = hospital?.Name,
+                    logoUrl = settings?.LogoUrl,
+                    settings,
+                    videos,
+                    announcements
+                }
+            };
+        }
+
+        // ================= HELPER =================
+        private string ExtractFileId(string url)
+        {
+            var uri = new Uri(url);
+            var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+            return query["id"];
         }
     }
 }

@@ -1,71 +1,141 @@
 using Xunit;
 using Moq;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
+using System.Security.Claims;
+
 using HospitalRoomAPI.Controllers;
 using HospitalRoomAPI.Services;
 using HospitalRoomAPI.DTOs;
-using Microsoft.AspNetCore.Hosting;
-using System.Security.Claims;
-using Microsoft.AspNetCore.Http;
+using HospitalRoomAPI.Models;
+using HospitalRoomAPI.Models.Common;
 
-namespace HospitalRoomAPI.Tests.Controllers
+public class DoctorsControllerTests
 {
-    public class DoctorsControllerTests
+    private readonly Mock<IDoctorService> _serviceMock = new();
+
+    private DoctorsController GetController()
     {
-        private DoctorsController CreateController(Mock<IDoctorService> svcMock, Mock<IWebHostEnvironment> envMock)
+        var controller = new DoctorsController(_serviceMock.Object);
+
+        var user = new ClaimsPrincipal(new ClaimsIdentity(new[]
         {
-            var controller = new DoctorsController(svcMock.Object, envMock.Object);
+        new Claim("HospitalId", "1"),
+        new Claim(ClaimTypes.Role, "Admin")
+    }, "mock"));
 
-            var user = new ClaimsPrincipal(new ClaimsIdentity(new Claim[] {
-                new Claim("HospitalId", "1"), new Claim(ClaimTypes.Role, "SuperAdmin")
-            }, "Test"));
-
-            controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = user } };
-            return controller;
-        }
-
-        [Fact]
-        public async System.Threading.Tasks.Task GetDoctors_ReturnsOk()
+        controller.ControllerContext = new ControllerContext
         {
-            var svc = new Mock<IDoctorService>();
-            svc.Setup(s => s.GetDoctorsAsync(1)).ReturnsAsync(new Models.Common.ApiResponse<object> { Success = true, Data = new System.Collections.Generic.List<object>() });
-            var env = new Mock<IWebHostEnvironment>();
+            HttpContext = new DefaultHttpContext { User = user }
+        };
 
-            var controller = CreateController(svc, env);
+        return controller;
+    }
 
-            var result = await controller.GetDoctors();
-            Assert.IsType<OkObjectResult>(result);
-        }
+    // ================= GET =================
 
-        [Fact]
-        public async System.Threading.Tasks.Task AddDoctor_Forbid_WhenServiceFails()
-        {
-            var svc = new Mock<IDoctorService>();
-            svc.Setup(s => s.AddDoctorAsync(It.IsAny<DoctorDto>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>()))
-               .ReturnsAsync(new Models.Common.ApiResponse<object> { Success = false });
+    [Fact]
+    public async Task GetDoctors_ReturnsOk()
+    {
+        _serviceMock
+            .Setup(s => s.GetDoctorsAsync(1))
+            .ReturnsAsync(new ApiResponse<List<Doctor>>
+            {
+                Success = true,
+                Data = new List<Doctor>()
+            });
 
-            var env = new Mock<IWebHostEnvironment>();
-            env.Setup(e => e.WebRootPath).Returns("wwwroot");
+        var result = await GetController().GetDoctors();
 
-            var controller = CreateController(svc, env);
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var data = Assert.IsType<ApiResponse<List<Doctor>>>(ok.Value);
 
-            var dto = new DoctorDto { Name = "Dr" };
-            var result = await controller.AddDoctor(dto);
+        Assert.True(data.Success);
+    }
 
-            Assert.IsType<ForbidResult>(result);
-        }
+    // ================= ADD =================
 
-        [Fact]
-        public async System.Threading.Tasks.Task DeleteDoctor_NotFound_WhenServiceFails()
-        {
-            var svc = new Mock<IDoctorService>();
-            svc.Setup(s => s.DeleteDoctorAsync(1)).ReturnsAsync(new Models.Common.ApiResponse<object> { Success = false });
-            var env = new Mock<IWebHostEnvironment>();
+    [Fact]
+    public async Task AddDoctor_ReturnsOk_WhenSuccess()
+    {
+        var dto = new DoctorDto();
 
-            var controller = CreateController(svc, env);
+        _serviceMock
+            .Setup(s => s.AddDoctorAsync(dto, 1, "Admin")) // ✅ FIXED
+            .ReturnsAsync(new ApiResponse<Doctor> { Success = true });
 
-            var result = await controller.DeleteDoctor(1);
-            Assert.IsType<NotFoundResult>(result);
-        }
+        var result = await GetController().AddDoctor(dto);
+
+        Assert.IsType<OkObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task AddDoctor_ReturnsForbid_WhenFail()
+    {
+        var dto = new DoctorDto();
+
+        _serviceMock
+            .Setup(s => s.AddDoctorAsync(dto, 1, "Admin")) // ✅ FIXED
+            .ReturnsAsync(new ApiResponse<Doctor> { Success = false });
+
+        var result = await GetController().AddDoctor(dto);
+
+        Assert.IsType<ForbidResult>(result);
+    }
+
+    // ================= UPDATE =================
+
+    [Fact]
+    public async Task UpdateDoctor_ReturnsOk()
+    {
+        var dto = new DoctorDto();
+
+        _serviceMock
+            .Setup(s => s.UpdateDoctorAsync(1, dto)) // ✅ FIXED
+            .ReturnsAsync(new ApiResponse<Doctor> { Success = true });
+
+        var result = await GetController().UpdateDoctor(1, dto);
+
+        Assert.IsType<OkObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task UpdateDoctor_ReturnsNotFound()
+    {
+        var dto = new DoctorDto();
+
+        _serviceMock
+            .Setup(s => s.UpdateDoctorAsync(1, dto)) // ✅ FIXED
+            .ReturnsAsync(new ApiResponse<Doctor> { Success = false });
+
+        var result = await GetController().UpdateDoctor(1, dto);
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    // ================= DELETE =================
+
+    [Fact]
+    public async Task DeleteDoctor_ReturnsOk()
+    {
+        _serviceMock
+            .Setup(s => s.DeleteDoctorAsync(1))
+            .ReturnsAsync(new ApiResponse<Doctor> { Success = true });
+
+        var result = await GetController().DeleteDoctor(1);
+
+        Assert.IsType<OkObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task DeleteDoctor_ReturnsNotFound()
+    {
+        _serviceMock
+            .Setup(s => s.DeleteDoctorAsync(1))
+            .ReturnsAsync(new ApiResponse<Doctor> { Success = false });
+
+        var result = await GetController().DeleteDoctor(1);
+
+        Assert.IsType<NotFoundResult>(result);
     }
 }

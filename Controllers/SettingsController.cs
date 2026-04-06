@@ -6,6 +6,7 @@ using System.Security.Claims;
 
 namespace HospitalRoomAPI.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
     public class SettingsController : ControllerBase
@@ -26,7 +27,7 @@ namespace HospitalRoomAPI.Controllers
         }
 
         // ================= SAVE =================
-        [HttpPost]
+        [HttpPost("save")]
         public async Task<IActionResult> SaveSettings([FromBody] SaveSettingsDto dto)
         {
             int hospitalId = int.Parse(User.FindFirst("HospitalId")!.Value);
@@ -68,6 +69,17 @@ namespace HospitalRoomAPI.Controllers
             int hospitalId = int.Parse(User.FindFirst("HospitalId")!.Value);
 
             var result = await _service.DeleteVideo(path, hospitalId);
+
+            return Ok(result);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetSettings()
+        {
+            // ?? If you want hospital-based settings
+            int hospitalId = int.Parse(User.FindFirst("HospitalId")!.Value);
+
+            var result = await _service.GetSettingsByHospital(hospitalId);
 
             return Ok(result);
         }

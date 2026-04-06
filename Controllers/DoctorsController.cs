@@ -12,77 +12,74 @@ namespace HospitalRoomAPI.Controllers
     public class DoctorsController : ControllerBase
     {
         private readonly IDoctorService _service;
-        private readonly IWebHostEnvironment _env;
 
-        public DoctorsController(IDoctorService service, IWebHostEnvironment env)
+        public DoctorsController(IDoctorService service)
         {
             _service = service;
-            _env = env;
-        }
-
-        private int GetHospitalId()
-        {
-            return int.Parse(User.FindFirst("HospitalId")!.Value);
-        }
-
-        private string GetRole()
-        {
-            return User.FindFirst(ClaimTypes.Role)!.Value;
         }
 
         // ================= GET =================
-
         [HttpGet]
         public async Task<IActionResult> GetDoctors()
         {
-            var result = await _service.GetDoctorsAsync(GetHospitalId());
+            var hospitalIdClaim = User.FindFirst("HospitalId")?.Value;
+
+            if (string.IsNullOrEmpty(hospitalIdClaim))
+                return Unauthorized("HospitalId missing in token");
+
+            int hospitalId = int.Parse(hospitalIdClaim);
+
+            var result = await _service.GetDoctorsAsync(hospitalId);
+
             return Ok(result);
         }
 
-        // ================= ADD =================
-
+        // ================= CREATE =================
         [HttpPost]
         public async Task<IActionResult> AddDoctor([FromForm] DoctorDto dto)
         {
-            var result = await _service.AddDoctorAsync(
-                dto,
-                GetHospitalId(),
-                GetRole(),
-                _env.WebRootPath!
-            );
+            var hospitalIdClaim = User.FindFirst("HospitalId")?.Value;
+            var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+            if (hospitalIdClaim == null || role == null)
+                return Unauthorized();
+
+            int hospitalId = int.Parse(hospitalIdClaim);
+
+            var result = await _service.AddDoctorAsync(dto, hospitalId, role);
 
             if (!result.Success)
-                return Forbid();
+                return StatusCode(403, result);
 
             return Ok(result);
         }
 
         // ================= UPDATE =================
-
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateDoctor(int id, [FromForm] DoctorDto dto)
         {
-            var result = await _service.UpdateDoctorAsync(
-                id,
-                dto,
-                _env.WebRootPath!
-            );
+            if (id <= 0)
+                return BadRequest("Invalid doctor ID");
+
+            var result = await _service.UpdateDoctorAsync(id, dto);
 
             if (!result.Success)
-                return NotFound();
+                return NotFound(result);
 
             return Ok(result);
         }
 
         // ================= DELETE =================
-
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteDoctor(int id)
         {
+            if (id <= 0)
+                return BadRequest("Invalid doctor ID");
+
             var result = await _service.DeleteDoctorAsync(id);
 
             if (!result.Success)
-                return NotFound();
+                return NotFound(result);
 
             return Ok(result);
         }

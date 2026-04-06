@@ -15,5 +15,7 @@ namespace HospitalRoomAPI.Services
         Task<ApiResponse<string>> UploadVideo(UploadVideoDto dto, int hospitalId);
 
         Task<ApiResponse<object>> DeleteVideo(string path, int hospitalId);
+
+        Task<ApiResponse<object>> GetSettingsByHospital(int hospitalId);
     }
 }

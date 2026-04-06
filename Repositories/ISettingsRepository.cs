@@ -6,7 +6,7 @@ namespace HospitalRoomAPI.Repositories
 {
 	public interface ISettingsRepository
 	{
-		Task<Setting?> GetSettings(int hospitalId, int? floorId, int? roomId);
+		Task<Setting?> GetSettings(int hospitalId, int? roomId, int? floorId);
 		Task<Setting> SaveSettings(Setting settings);
 
 		Task<List<string>> GetRoomNumbers(int? roomId, int? floorId, int hospitalId);
@@ -15,8 +15,8 @@ namespace HospitalRoomAPI.Repositories
 		Task<List<string>> GetVideos(int hospitalId, int? floorId, int? roomId);
 		Task<List<PatientAnnouncement>> GetAnnouncements(int hospitalId, int? floorId, int? roomId);
 
-		Task<string> UploadLogo(IFormFile file, int hospitalId);
-		Task<string> UploadVideo(UploadVideoDto dto, int hospitalId);
-		Task DeleteVideo(string path);
+        Task SaveLogo(string url, int hospitalId);
+        Task<string> SaveVideo(string url, int hospitalId, UploadVideoDto dto);
+        Task DeleteVideo(string path);
 	}
 }

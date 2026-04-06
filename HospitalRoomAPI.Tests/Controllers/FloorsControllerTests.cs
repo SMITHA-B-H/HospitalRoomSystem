@@ -1,46 +1,154 @@
 using Xunit;
 using Moq;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
+using System.Security.Claims;
+
 using HospitalRoomAPI.Controllers;
 using HospitalRoomAPI.Services;
 using HospitalRoomAPI.DTOs;
-using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
-using Microsoft.AspNetCore.Http;
+using HospitalRoomAPI.Models;        // ✅ if Floor model used
+using HospitalRoomAPI.Models.Common;       // ✅ ApiResponse<T> (adjust if needed)
 
-namespace HospitalRoomAPI.Tests.Controllers
+public class FloorsControllerTests
 {
-    public class FloorsControllerTests
+    private readonly Mock<IFloorService> _serviceMock = new();
+
+    private FloorsController GetController()
     {
-        private FloorsController CreateController(Mock<IFloorService> svc)
+        var controller = new FloorsController(_serviceMock.Object);
+
+        var user = new ClaimsPrincipal(new ClaimsIdentity(new[]
         {
-            var controller = new FloorsController(svc.Object);
-            var user = new ClaimsPrincipal(new ClaimsIdentity(new Claim[] { new Claim("HospitalId", "1") }, "Test"));
-            controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = user } };
-            return controller;
-        }
+            new Claim("HospitalId", "1"),
+            new Claim(ClaimTypes.Role, "Admin")
+        }, "mock"));
 
-        [Fact]
-        public async System.Threading.Tasks.Task GetFloors_ReturnsOk()
+        controller.ControllerContext = new ControllerContext
         {
-            var svc = new Mock<IFloorService>();
-            svc.Setup(s => s.GetFloorsAsync(1)).ReturnsAsync(new Models.Common.ApiResponse<object> { Success = true, Data = new System.Collections.Generic.List<object>() });
+            HttpContext = new DefaultHttpContext { User = user }
+        };
 
-            var controller = CreateController(svc);
-            var result = await controller.GetFloors();
-            Assert.IsType<OkObjectResult>(result);
-        }
+        return controller;
+    }
 
-        [Fact]
-        public async System.Threading.Tasks.Task AddFloor_ReturnsOk()
-        {
-            var svc = new Mock<IFloorService>();
-            svc.Setup(s => s.AddFloorAsync(It.IsAny<CreateFloorDto>(), 1)).ReturnsAsync(new Models.Common.ApiResponse<object> { Success = true });
+    // ================= GET =================
 
-            var controller = CreateController(svc);
-            var dto = new CreateFloorDto { FloorNumber = "1" };
+    [Fact]
+    public async Task GetFloors_ReturnsOk()
+    {
+        _serviceMock
+            .Setup(s => s.GetFloorsAsync(1))
+            .ReturnsAsync(new ApiResponse<List<Floor>>
+            {
+                Success = true,
+                Data = new List<Floor>()
+            });
 
-            var result = await controller.AddFloor(dto);
-            Assert.IsType<OkObjectResult>(result);
-        }
+        var controller = GetController();
+
+        var result = await controller.GetFloors();
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var data = Assert.IsType<ApiResponse<List<Floor>>>(ok.Value);
+
+        Assert.True(data.Success);
+    }
+
+    // ================= ADD =================
+
+    [Fact]
+    public async Task AddFloor_ReturnsOk()
+    {
+        var dto = new CreateFloorDto();
+
+        _serviceMock
+            .Setup(s => s.AddFloorAsync(dto, 1))
+            .ReturnsAsync(new ApiResponse<Floor>
+            {
+                Success = true
+            });
+
+        var controller = GetController();
+
+        var result = await controller.AddFloor(dto);
+
+        Assert.IsType<OkObjectResult>(result);
+    }
+
+    // ================= UPDATE =================
+
+    [Fact]
+    public async Task UpdateFloor_ReturnsOk_WhenSuccess()
+    {
+        var dto = new UpdateFloorDto();
+
+        _serviceMock
+            .Setup(s => s.UpdateFloorAsync(1, dto))
+            .ReturnsAsync(new ApiResponse<Floor>
+            {
+                Success = true
+            });
+
+        var controller = GetController();
+
+        var result = await controller.UpdateFloor(1, dto);
+
+        Assert.IsType<OkObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task UpdateFloor_ReturnsNotFound_WhenFail()
+    {
+        var dto = new UpdateFloorDto();
+
+        _serviceMock
+            .Setup(s => s.UpdateFloorAsync(1, dto))
+            .ReturnsAsync(new ApiResponse<Floor>
+            {
+                Success = false
+            });
+
+        var controller = GetController();
+
+        var result = await controller.UpdateFloor(1, dto);
+
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+
+    // ================= DELETE =================
+
+    [Fact]
+    public async Task DeleteFloor_ReturnsOk_WhenSuccess()
+    {
+        _serviceMock
+            .Setup(s => s.DeleteFloorAsync(1))
+            .ReturnsAsync(new ApiResponse<Floor>
+            {
+                Success = true
+            });
+
+        var controller = GetController();
+
+        var result = await controller.DeleteFloor(1);
+
+        Assert.IsType<OkObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task DeleteFloor_ReturnsNotFound_WhenFail()
+    {
+        _serviceMock
+            .Setup(s => s.DeleteFloorAsync(1))
+            .ReturnsAsync(new ApiResponse<Floor>
+            {
+                Success = false
+            });
+
+        var controller = GetController();
+
+        var result = await controller.DeleteFloor(1);
+
+        Assert.IsType<NotFoundObjectResult>(result);
     }
 }

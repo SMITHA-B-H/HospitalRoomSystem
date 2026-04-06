@@ -56,16 +56,14 @@ namespace HospitalRoomAPI.Repositories
         public async Task<List<PatientAnnouncement>> GetRoomAnnouncements(int roomId)
         {
             var now = DateTime.Now;
-
             return await _context.PatientAnnouncements
                 .Where(a =>
                     a.IsActive &&
                     (a.ExpiryTime == null || a.ExpiryTime > now) &&
-                    (
-                        a.RoomId == roomId ||
-                        a.FloorId == _context.Rooms.Where(r => r.Id == roomId).Select(r => r.FloorId).FirstOrDefault() ||
-                        (a.RoomId == null && a.FloorId == null)
-                    ))
+                    (a.RoomId == roomId ||
+                     a.FloorId == _context.Rooms.Where(r => r.Id == roomId).Select(r => r.FloorId).FirstOrDefault() ||
+                     (a.RoomId == null && a.FloorId == null))
+                )
                 .OrderByDescending(a => a.CreatedAt)
                 .ToListAsync();
         }
@@ -73,7 +71,6 @@ namespace HospitalRoomAPI.Repositories
         public async Task<List<PatientAnnouncement>> GetAllActiveAnnouncements()
         {
             var now = DateTime.Now;
-
             return await _context.PatientAnnouncements
                 .Where(a => a.IsActive && (a.ExpiryTime == null || a.ExpiryTime > now))
                 .OrderByDescending(a => a.CreatedAt)
@@ -82,7 +79,7 @@ namespace HospitalRoomAPI.Repositories
 
         public async Task<List<object>> GetPatientsByRoom(int roomId)
         {
-            return await _context.Beds
+            var patients = await _context.Beds
                 .Include(b => b.Patient)
                 .Where(b => b.RoomId == roomId && b.Patient != null)
                 .Select(b => new
@@ -92,6 +89,8 @@ namespace HospitalRoomAPI.Repositories
                     bedNumber = b.BedNumber
                 })
                 .ToListAsync<object>();
+
+            return patients;
         }
 
         public async Task<Patient?> GetPatientById(int patientId)

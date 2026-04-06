@@ -9,7 +9,7 @@ namespace HospitalRoomAPI.Controllers
     {
         private readonly IDisplayService _displayService;
 
-        public DisplayController(DisplayService displayService)
+        public DisplayController(IDisplayService displayService)
         {
             _displayService = displayService;
         }

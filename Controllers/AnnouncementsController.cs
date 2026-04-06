@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using HospitalRoomAPI.Data;
+using Microsoft.AspNetCore.Authorization;
 using HospitalRoomAPI.Models;
 using HospitalRoomAPI.Services;
+using Microsoft.AspNetCore.Http;
 
 namespace HospitalRoomAPI.Controllers
 {
@@ -20,9 +20,8 @@ namespace HospitalRoomAPI.Controllers
         [HttpPost]
         public async Task<IActionResult> Create(PatientAnnouncement model)
         {
-            int hospitalId = 1; // get from claims
-            var result = await _service.CreateAsync(model, hospitalId);
-            return Ok(result);
+            int hospitalId = 1; // TODO: replace with user claims
+            return Ok(await _service.CreateAsync(model, hospitalId));
         }
 
         [HttpGet("room/{roomId}")]
@@ -53,6 +52,20 @@ namespace HospitalRoomAPI.Controllers
         public async Task<IActionResult> GetPatients(int roomId)
         {
             return Ok(await _service.GetPatientsByRoom(roomId));
+        }
+
+        [Authorize]
+        [HttpPost("upload-announcement-poster")]
+        public async Task<IActionResult> UploadPoster(IFormFile file)
+        {
+            return Ok(await _service.UploadPoster(file));
+        }
+
+        [Authorize]
+        [HttpPost("upload-announcement-video")]
+        public async Task<IActionResult> UploadVideo(IFormFile file)
+        {
+            return Ok(await _service.UploadVideo(file));
         }
     }
 }

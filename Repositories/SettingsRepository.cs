@@ -101,36 +101,44 @@ namespace HospitalRoomAPI.Repositories
                 .ToListAsync();
         }
 
-        // ================= FILE UPLOADS =================
+        // ================= LOGO FIX (IMPORTANT) =================
 
-        public async Task<string> UploadLogo(IFormFile file, int hospitalId)
+        public async Task SaveLogo(string url, int hospitalId)
         {
-            var fileName = $"{Guid.NewGuid()}_{file.FileName}";
-            var path = Path.Combine("wwwroot/logos", fileName);
+            var setting = await _context.Settings
+                .FirstOrDefaultAsync(s => s.HospitalId == hospitalId);
 
-            using (var stream = new FileStream(path, FileMode.Create))
+            // ? FIX: Create if not exists
+            if (setting == null)
             {
-                await file.CopyToAsync(stream);
+                setting = new Setting
+                {
+                    HospitalId = hospitalId,
+                    LogoUrl = url
+                };
+
+                _context.Settings.Add(setting);
+            }
+            else
+            {
+                setting.LogoUrl = url;
+                _context.Settings.Update(setting);
             }
 
-            return $"/logos/{fileName}";
+            await _context.SaveChangesAsync();
         }
 
-        public async Task<string> UploadVideo(UploadVideoDto dto, int hospitalId)
+        // ================= VIDEOS =================
+
+        public async Task<string> SaveVideo(string url, int hospitalId, UploadVideoDto dto)
         {
-            var fileName = $"{Guid.NewGuid()}_{dto.File.FileName}";
-            var path = Path.Combine("wwwroot/videos", fileName);
-
-            using (var stream = new FileStream(path, FileMode.Create))
-            {
-                await dto.File.CopyToAsync(stream);
-            }
-
             var video = new AdsVideo
             {
-                FileName = fileName,
-                FilePath = $"/videos/{fileName}",
-                HospitalId = hospitalId
+                FileName = dto.File.FileName,
+                FilePath = url,
+                HospitalId = hospitalId,
+                FloorId = dto.FloorId,
+                RoomId = dto.RoomId
             };
 
             _context.AdsVideos.Add(video);

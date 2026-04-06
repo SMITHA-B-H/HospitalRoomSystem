@@ -1,6 +1,7 @@
 using HospitalRoomAPI.Repositories;
 using HospitalRoomAPI.Models;
 using HospitalRoomAPI.Models.Common;
+using Microsoft.AspNetCore.Http;
 
 namespace HospitalRoomAPI.Services
 {
@@ -8,14 +9,20 @@ namespace HospitalRoomAPI.Services
     {
         private readonly IAnnouncementRepository _repo;
         private readonly IDisplayService _display;
+        private readonly IFileStorageService _fileService;
 
-        public AnnouncementService(IAnnouncementRepository repo, IDisplayService display)
+        public AnnouncementService(
+            IAnnouncementRepository repo,
+            IDisplayService display,
+            IFileStorageService fileService)
         {
             _repo = repo;
             _display = display;
+            _fileService = fileService;
         }
 
-        public async Task<ApiResponse<object>> CreateAsync(PatientAnnouncement model, int hospitalId)
+        // ================= CREATE =================
+        public async Task<ApiResponse<PatientAnnouncement>> CreateAsync(PatientAnnouncement model, int hospitalId)
         {
             model.CreatedAt = DateTime.UtcNow;
             model.IsActive = true;
@@ -34,64 +41,74 @@ namespace HospitalRoomAPI.Services
             await _repo.AddAsync(model);
             await _repo.SaveAsync();
 
-            return new ApiResponse<object>
+            await PushUpdate(model);
+
+            return new ApiResponse<PatientAnnouncement>
             {
                 Success = true,
-                Data = model.Id
+                Data = model
             };
         }
 
-        public async Task<ApiResponse<object>> DeleteAsync(int id)
+        // ================= DELETE =================
+        public async Task<ApiResponse<PatientAnnouncement>> DeleteAsync(int id)
         {
             var announcement = await _repo.GetByIdAsync(id);
             if (announcement == null)
-                return new ApiResponse<object> { Success = false };
+                return new ApiResponse<PatientAnnouncement> { Success = false, Message = "Not found" };
 
             await _repo.DeleteAsync(announcement);
             await _repo.SaveAsync();
 
             await PushUpdate(announcement);
 
-            return new ApiResponse<object> { Success = true };
+            return new ApiResponse<PatientAnnouncement>
+            {
+                Success = true,
+                Data = announcement
+            };
         }
 
-        public async Task<ApiResponse<object>> DeactivateAsync(int id)
+        // ================= DEACTIVATE =================
+        public async Task<ApiResponse<PatientAnnouncement>> DeactivateAsync(int id)
         {
             var announcement = await _repo.GetByIdAsync(id);
             if (announcement == null)
-                return new ApiResponse<object> { Success = false };
+                return new ApiResponse<PatientAnnouncement> { Success = false, Message = "Not found" };
 
             announcement.IsActive = false;
             await _repo.SaveAsync();
 
             await PushUpdate(announcement);
 
-            return new ApiResponse<object> { Success = true };
+            return new ApiResponse<PatientAnnouncement> { Success = true, Data = announcement };
         }
 
+        // ================= GET ROOM =================
         public async Task<ApiResponse<List<PatientAnnouncement>>> GetRoomAsync(int roomId)
         {
             var data = await _repo.GetRoomAnnouncements(roomId);
             return new ApiResponse<List<PatientAnnouncement>> { Success = true, Data = data };
         }
 
+        // ================= GET ALL =================
         public async Task<ApiResponse<List<PatientAnnouncement>>> GetAllAsync()
         {
             var data = await _repo.GetAllActiveAnnouncements();
             return new ApiResponse<List<PatientAnnouncement>> { Success = true, Data = data };
         }
 
-        public async Task<ApiResponse<object>> GetPatientsByRoom(int roomId)
+        // ================= GET PATIENTS =================
+        public async Task<ApiResponse<List<Patient>>> GetPatientsByRoom(int roomId)
         {
             var data = await _repo.GetPatientsByRoom(roomId);
-            return new ApiResponse<object> { Success = true, Data = data };
+            return new ApiResponse<List<Patient>> { Success = true, Data = data.Cast<Patient>().ToList() };
         }
 
         // ================= PUSH =================
         private async Task PushUpdate(PatientAnnouncement a)
         {
             List<string> rooms;
-
             if (a.RoomId != null)
                 rooms = await _repo.GetRoomNumbersByRoomId(a.RoomId.Value);
             else if (a.FloorId != null)
@@ -100,7 +117,23 @@ namespace HospitalRoomAPI.Services
                 rooms = await _repo.GetRoomNumbersByHospitalId(a.HospitalId ?? 0);
 
             foreach (var room in rooms)
-                await _display.PushRoomUpdate(room);
+            {
+                if (!string.IsNullOrEmpty(room))
+                    await _display.PushRoomUpdate(room);
+            }
+        }
+
+        // ================= FILE UPLOAD =================
+        public async Task<ApiResponse<string>> UploadPoster(IFormFile file)
+        {
+            var url = await _fileService.UploadAsync(file);
+            return new ApiResponse<string> { Success = true, Data = url };
+        }
+
+        public async Task<ApiResponse<string>> UploadVideo(IFormFile file)
+        {
+            var url = await _fileService.UploadAsync(file);
+            return new ApiResponse<string> { Success = true, Data = url };
         }
     }
 }

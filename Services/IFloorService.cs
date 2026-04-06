@@ -8,7 +8,7 @@ namespace HospitalRoomAPI.Services
     {
         Task<ApiResponse<List<Floor>>> GetFloorsAsync(int hospitalId);
         Task<ApiResponse<Floor>> AddFloorAsync(CreateFloorDto dto, int hospitalId);
-        Task<ApiResponse<object>> UpdateFloorAsync(int id, UpdateFloorDto dto);
-        Task<ApiResponse<object>> DeleteFloorAsync(int id);
+        Task<ApiResponse<Floor>> UpdateFloorAsync(int id, UpdateFloorDto dto);
+        Task<ApiResponse<Floor>> DeleteFloorAsync(int id);
     }
 }

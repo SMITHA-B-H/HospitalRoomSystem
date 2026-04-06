@@ -38,10 +38,12 @@ namespace HospitalRoomAPI.Services
             await _repository.AddFloorAsync(floor);
             await _repository.SaveChangesAsync();
 
-            // SignalR
             var rooms = await _repository.GetRoomNumbersByFloorIdAsync(floor.Id);
             foreach (var room in rooms)
-                await _displayService.PushRoomUpdate(room);
+            {
+                if (!string.IsNullOrEmpty(room))
+                    await _displayService.PushRoomUpdate(room);
+            }
 
             return new ApiResponse<Floor>
             {
@@ -50,16 +52,16 @@ namespace HospitalRoomAPI.Services
             };
         }
 
-        public async Task<ApiResponse<object>> UpdateFloorAsync(int id, UpdateFloorDto dto)
+        public async Task<ApiResponse<Floor>> UpdateFloorAsync(int id, UpdateFloorDto dto)
         {
             var floor = await _repository.GetFloorByIdAsync(id);
 
             if (floor == null)
-                return new ApiResponse<object> { Success = false, Message = "Not found" };
+                return new ApiResponse<Floor> { Success = false, Message = "Not found" };
 
             floor.FloorName = dto.FloorName;
 
-            var admin = floor.Users.FirstOrDefault(u => u.Role == "FloorAdmin");
+            var admin = floor.Users?.FirstOrDefault(u => u.Role == "FloorAdmin");
 
             if (admin != null)
             {
@@ -74,17 +76,24 @@ namespace HospitalRoomAPI.Services
 
             var rooms = await _repository.GetRoomNumbersByFloorIdAsync(id);
             foreach (var room in rooms)
-                await _displayService.PushRoomUpdate(room);
+            {
+                if (!string.IsNullOrEmpty(room))
+                    await _displayService.PushRoomUpdate(room);
+            }
 
-            return new ApiResponse<object> { Success = true };
+            return new ApiResponse<Floor>
+            {
+                Success = true,
+                Data = floor
+            };
         }
 
-        public async Task<ApiResponse<object>> DeleteFloorAsync(int id)
+        public async Task<ApiResponse<Floor>> DeleteFloorAsync(int id)
         {
             var floor = await _repository.GetFloorByIdAsync(id);
 
             if (floor == null)
-                return new ApiResponse<object> { Success = false, Message = "Not found" };
+                return new ApiResponse<Floor> { Success = false, Message = "Not found" };
 
             var rooms = await _repository.GetRoomNumbersByFloorIdAsync(id);
 
@@ -92,9 +101,16 @@ namespace HospitalRoomAPI.Services
             await _repository.SaveChangesAsync();
 
             foreach (var room in rooms)
-                await _displayService.PushRoomUpdate(room);
+            {
+                if (!string.IsNullOrEmpty(room))
+                    await _displayService.PushRoomUpdate(room);
+            }
 
-            return new ApiResponse<object> { Success = true };
+            return new ApiResponse<Floor>
+            {
+                Success = true,
+                Data = floor
+            };
         }
     }
 }

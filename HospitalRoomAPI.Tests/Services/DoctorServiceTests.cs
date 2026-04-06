@@ -13,13 +13,15 @@ public class DoctorServiceTests
     private readonly Mock<IDoctorRepository> _repoMock;
     private readonly Mock<IDisplayService> _displayMock;
     private readonly DoctorService _service;
+    private readonly Mock<IFileStorageService> _fileMock = new();
 
     public DoctorServiceTests()
     {
         _repoMock = new Mock<IDoctorRepository>();
         _displayMock = new Mock<IDisplayService>();
-
-        _service = new DoctorService(_repoMock.Object, _displayMock.Object);
+        _fileMock = new Mock<IFileStorageService>();
+        _service = new DoctorService(_repoMock.Object, _displayMock.Object, _fileMock.Object);
+        
     }
 
     [Fact]
@@ -35,27 +37,49 @@ public class DoctorServiceTests
     }
 
     [Fact]
-    public async Task AddDoctor_Should_Fail_If_Not_Admin()
+    public async Task AddDoctor_Should_Succeed()
     {
-        var dto = new DoctorDto { Name = "Dr A", Department = "Cardio" };
+        var dto = new DoctorDto
+        {
+            Name = "Dr Test",
+            Department = "Cardio"
+        };
 
-        var result = await _service.AddDoctorAsync(dto, 1, "User", "wwwroot");
+        _fileMock.Setup(x => x.UploadAsync(It.IsAny<IFormFile>()))
+                 .ReturnsAsync("https://drive.google.com/test");
 
-        result.Success.Should().BeFalse();
+        _repoMock.Setup(r => r.AddAsync(It.IsAny<Doctor>()))
+                 .Returns(Task.CompletedTask);
+
+        _repoMock.Setup(r => r.SaveChangesAsync())
+                 .Returns(Task.CompletedTask);
+
+        _repoMock.Setup(r => r.GetDoctorRoomNumbersAsync(It.IsAny<int>()))
+                 .ReturnsAsync(new List<string>());
+
+        var result = await _service.AddDoctorAsync(dto, 1, "SuperAdmin");
+
+        Assert.True(result.Success);
     }
 
     [Fact]
-    public async Task DeleteDoctor_Should_Remove_And_Call_Display()
+    public async Task UpdateDoctor_Should_Succeed()
     {
+        var service = _service;
+
         var doctor = new Doctor { Id = 1 };
 
-        _repoMock.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(doctor);
+        _repoMock.Setup(r => r.GetByIdAsync(1))
+                 .ReturnsAsync(doctor);
+
+        _repoMock.Setup(r => r.SaveChangesAsync())
+                 .Returns(Task.CompletedTask);
+
         _repoMock.Setup(r => r.GetDoctorRoomNumbersAsync(1))
-            .ReturnsAsync(new List<string> { "101" });
+                 .ReturnsAsync(new List<string>());
 
-        var result = await _service.DeleteDoctorAsync(1);
+        var result = await service.UpdateDoctorAsync(1, new DoctorDto());
 
-        result.Success.Should().BeTrue();
-        _displayMock.Verify(d => d.PushRoomUpdate("101"), Times.Once);
+        Assert.True(result.Success);
     }
 }

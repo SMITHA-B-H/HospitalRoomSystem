@@ -2,9 +2,13 @@
 using HospitalRoomAPI.Services;
 using HospitalRoomAPI.Repositories;
 using HospitalRoomAPI.Hubs;
+using HospitalRoomAPI.Middleware;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,6 +20,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// =============================
+// CONTROLLERS
+// =============================
 builder.Services.AddControllers()
 .AddJsonOptions(options =>
 {
@@ -24,46 +31,57 @@ builder.Services.AddControllers()
 });
 
 // =============================
-// DEPENDENCY INJECTION (CLEAN)
+// DEPENDENCY INJECTION
 // =============================
 
-// Repositories
+// ✅ Repositories
 builder.Services.AddScoped<IRoomRepository, RoomRepository>();
 builder.Services.AddScoped<IDisplayRepository, DisplayRepository>();
 builder.Services.AddScoped<ISettingsRepository, SettingsRepository>();
+builder.Services.AddScoped<IAuthRepository, AuthRepository>();
+builder.Services.AddScoped<IAnnouncementRepository, AnnouncementRepository>();
+builder.Services.AddScoped<IDoctorRepository, DoctorRepository>();
+builder.Services.AddScoped<IFloorRepository, FloorRepository>();
 
-// Services
+// ✅ Services
+builder.Services.AddScoped<ILicenseService, LicenseService>();
 builder.Services.AddScoped<IRoomService, RoomService>();
 builder.Services.AddScoped<IDisplayService, DisplayService>();
 builder.Services.AddScoped<ISettingsService, SettingsService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<SignalRService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
+builder.Services.AddScoped<IDoctorService, DoctorService>();
+builder.Services.AddScoped<IFloorService, FloorService>();
+
+builder.Services.AddScoped<IFileStorageService, GoogleDriveService>();
 
 // =============================
-// SWAGGER + SIGNALR
+// SWAGGER
 // =============================
 builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddSwaggerGen(options =>
 {
-    options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
-        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Type = SecuritySchemeType.Http,
         Scheme = "bearer",
         BearerFormat = "JWT",
-        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        In = ParameterLocation.Header,
         Description = "Enter: Bearer {your JWT token}"
     });
 
-    options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
-            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            new OpenApiSecurityScheme
             {
-                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                Reference = new OpenApiReference
                 {
-                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Type = ReferenceType.SecurityScheme,
                     Id = "Bearer"
                 }
             },
@@ -72,6 +90,9 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
+// =============================
+// SIGNALR
+// =============================
 builder.Services.AddSignalR();
 
 // =============================
@@ -93,6 +114,7 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
+
         ValidIssuer = jwtSettings["Issuer"],
         ValidAudience = jwtSettings["Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(key)
@@ -108,36 +130,48 @@ builder.Services.AddCors(options =>
     {
         policy.SetIsOriginAllowed(origin =>
             origin.StartsWith("http://localhost") ||
-            origin.StartsWith("http://192.168.1.5"))
+            origin.StartsWith("http://192.168."))
             .AllowAnyHeader()
             .AllowAnyMethod()
-            .AllowCredentials(); // ✅ Needed for SignalR
+            .AllowCredentials();
     });
 });
 
 var app = builder.Build();
 
 // =============================
-// MIDDLEWARE PIPELINE
+// PIPELINE
 // =============================
+
+// ✅ Swagger only in dev
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseStaticFiles(); // ✅ before routing
+app.UseStaticFiles();
 
 app.UseCors("AllowLocalhost");
 
 app.UseHttpsRedirection();
 
-app.UseAuthentication();   // ✅ FIRST
-app.UseAuthorization();    // ✅ SECOND
+// ✅ Auth first
+app.UseAuthentication();
+app.UseAuthorization();
 
+// ✅ THEN License Middleware
+app.UseMiddleware<LicenseMiddleware>();
+
+// =============================
+// ENDPOINTS
+// =============================
 app.MapControllers();
 app.MapHub<RoomHub>("/roomHub");
 
+// =============================
+// OPTIONAL: PORT BINDING
+// =============================
 app.Urls.Add("http://0.0.0.0:5285");
 
 app.Run();
