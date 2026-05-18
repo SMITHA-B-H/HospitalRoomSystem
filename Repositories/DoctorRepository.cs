@@ -29,6 +29,13 @@ namespace HospitalRoomAPI.Repositories
                 .FirstOrDefaultAsync(d => d.Id == id);
         }
 
+
+        public async Task<Doctor?> GetByEmployeeIdAsync(string employeeId)
+        {
+            return await _context.Doctors
+                .FirstOrDefaultAsync(x => x.EmployeeId == employeeId);
+        }
+
         // ================= ADD =================
         public async Task AddAsync(Doctor doctor)
         {
@@ -59,6 +66,26 @@ namespace HospitalRoomAPI.Repositories
                 .Where(r => r != null)
                 .Distinct()
                 .ToListAsync()!;
+        }
+
+        public async Task<bool>
+UpdateDisplayAsync(
+    int id,
+    string displayNumber)
+        {
+            var doctor =
+                await _context.Doctors
+                .FindAsync(id);
+
+            if (doctor == null)
+                return false;
+
+            doctor.DisplayNumber =
+                displayNumber;
+
+            await _context.SaveChangesAsync();
+
+            return true;
         }
     }
 }

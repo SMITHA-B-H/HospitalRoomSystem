@@ -10,10 +10,16 @@ namespace HospitalRoomAPI.Services
         private readonly IRoomRepository _repository;
         private readonly IDisplayService _displayService;
 
-        public RoomService(IRoomRepository repository, IDisplayService displayService)
+        private readonly IAnnouncementService _announcementService;
+
+        public RoomService(
+            IRoomRepository repository,
+            IDisplayService displayService,
+            IAnnouncementService announcementService)
         {
             _repository = repository;
             _displayService = displayService;
+            _announcementService = announcementService;
         }
 
         // ================= GET ROOMS =================
@@ -35,6 +41,16 @@ namespace HospitalRoomAPI.Services
             int hospitalId,
             int? floorId)
         {
+
+            var rooms = await _repository.GetRoomsAsync(role, hospitalId, floorId)
+            ?? new List<Room>();
+
+            var existingRoom = rooms
+                .FirstOrDefault(r =>
+                    r.RoomNumber != null &&
+                    room.RoomNumber != null &&
+                    r.RoomNumber.ToLower() == room.RoomNumber.ToLower());
+
             // FIX 1: Floor override (your test expects this)
             if (role == "FloorAdmin" && floorId.HasValue)
             {
@@ -112,7 +128,10 @@ namespace HospitalRoomAPI.Services
 
             var patientId = bed.Patient.Id;
 
-            await _repository.RemoveAnnouncementsByPatientIdAsync(patientId);
+            // ✅ DELETE ANNOUNCEMENTS + MEDIA
+            await _announcementService.DeleteByPatient(patientId);
+
+            // ✅ DELETE PATIENT
             await _repository.RemovePatientByIdAsync(patientId);
 
             bed.PatientId = null;
@@ -135,6 +154,7 @@ namespace HospitalRoomAPI.Services
             return await _repository.GetRoomsByFloorAsync(floorId);
         }
 
+
         // ================= DELETE =================
         public async Task<ApiResponse<object>> DeleteRoomAsync(
             int id,
@@ -145,15 +165,35 @@ namespace HospitalRoomAPI.Services
             var room = await _repository.GetRoomByIdWithBedsAsync(id);
 
             if (room == null)
-                return new ApiResponse<object> { Success = false, Message = "Not found" };
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Room not found"
+                };
+            }
+
+            // Only patient condition
+            if (room.Beds != null &&
+                room.Beds.Any(b => b.PatientId != null))
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Room cannot be deleted because patient is present."
+                };
+            }
 
             await _repository.RemoveRoomAsync(room);
-
             await _repository.SaveChangesAsync();
 
-            await _displayService.PushRoomUpdate(room.RoomNumber);
+            await _displayService.PushRoomUpdate(room.RoomNumber!);
 
-            return new ApiResponse<object> { Success = true };
+            return new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Room deleted successfully"
+            };
         }
 
         // ================= UPDATE =================
@@ -183,6 +223,6 @@ namespace HospitalRoomAPI.Services
                 Success = true,
                 Data = room
             };
-        }
+        } 
     }
 }

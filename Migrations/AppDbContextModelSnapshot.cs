@@ -95,6 +95,41 @@ namespace HospitalRoomAPI.Migrations
                     b.ToTable("Beds");
                 });
 
+            modelBuilder.Entity("HospitalRoomAPI.Models.DisplayDevice", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ConnectionId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("DeviceId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("DeviceName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsOnline")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("LastSeen")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RoomNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("DisplayDevices");
+                });
+
             modelBuilder.Entity("HospitalRoomAPI.Models.Doctor", b =>
                 {
                     b.Property<int>("Id")
@@ -107,6 +142,14 @@ namespace HospitalRoomAPI.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("DisplayNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EmployeeId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("HospitalId")
                         .HasColumnType("int");
 
@@ -115,6 +158,10 @@ namespace HospitalRoomAPI.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PhotoUrl")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
@@ -246,6 +293,50 @@ namespace HospitalRoomAPI.Migrations
                     b.HasIndex("PatientId");
 
                     b.ToTable("PatientAnnouncements");
+                });
+
+            modelBuilder.Entity("HospitalRoomAPI.Models.QueueEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Department")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("DisplayNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("DoctorId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PatientName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Stage")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("TokenNumber")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DoctorId");
+
+                    b.ToTable("QueueEntries");
                 });
 
             modelBuilder.Entity("HospitalRoomAPI.Models.Room", b =>
@@ -465,6 +556,17 @@ namespace HospitalRoomAPI.Migrations
                         .HasForeignKey("PatientId");
 
                     b.Navigation("Patient");
+                });
+
+            modelBuilder.Entity("HospitalRoomAPI.Models.QueueEntry", b =>
+                {
+                    b.HasOne("HospitalRoomAPI.Models.Doctor", "Doctor")
+                        .WithMany()
+                        .HasForeignKey("DoctorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Doctor");
                 });
 
             modelBuilder.Entity("HospitalRoomAPI.Models.Room", b =>

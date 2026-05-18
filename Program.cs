@@ -8,21 +8,42 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Microsoft.Extensions.FileProviders;
 
 using System.Text;
+using System.IO;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// =============================
-// DATABASE CONFIGURATION
-// =============================
+// =====================================================
+// CONFIG
+// =====================================================
+var storagePath = builder.Configuration["StoragePath"];
+
+// fallback if not set in appsettings.json
+if (string.IsNullOrWhiteSpace(storagePath))
+{
+    storagePath = Path.Combine(
+        Directory.GetCurrentDirectory(),
+        "Uploads"
+    );
+}
+
+// auto create folder if missing
+Directory.CreateDirectory(storagePath);
+
+// =====================================================
+// DATABASE
+// =====================================================
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection")));
+        builder.Configuration.GetConnectionString("DefaultConnection")
+    )
+);
 
-// =============================
-// CONTROLLERS
-// =============================
+// =====================================================
+// CONTROLLERS + JSON
+// =====================================================
 builder.Services.AddControllers()
 .AddJsonOptions(options =>
 {
@@ -30,11 +51,9 @@ builder.Services.AddControllers()
         System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
 });
 
-// =============================
-// DEPENDENCY INJECTION
-// =============================
-
-// ✅ Repositories
+// =====================================================
+// DEPENDENCY INJECTION - REPOSITORIES
+// =====================================================
 builder.Services.AddScoped<IRoomRepository, RoomRepository>();
 builder.Services.AddScoped<IDisplayRepository, DisplayRepository>();
 builder.Services.AddScoped<ISettingsRepository, SettingsRepository>();
@@ -42,28 +61,51 @@ builder.Services.AddScoped<IAuthRepository, AuthRepository>();
 builder.Services.AddScoped<IAnnouncementRepository, AnnouncementRepository>();
 builder.Services.AddScoped<IDoctorRepository, DoctorRepository>();
 builder.Services.AddScoped<IFloorRepository, FloorRepository>();
+builder.Services.AddScoped<IQueueRepository, QueueRepository>();
+builder.Services.AddScoped<IDeviceRepository, DeviceRepository>();
 
-// ✅ Services
-builder.Services.AddScoped<ILicenseService, LicenseService>();
+// =====================================================
+// DEPENDENCY INJECTION - SERVICES
+// =====================================================
 builder.Services.AddScoped<IRoomService, RoomService>();
 builder.Services.AddScoped<IDisplayService, DisplayService>();
 builder.Services.AddScoped<ISettingsService, SettingsService>();
-builder.Services.AddScoped<IEmailService, EmailService>();
-builder.Services.AddScoped<SignalRService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
 builder.Services.AddScoped<IDoctorService, DoctorService>();
 builder.Services.AddScoped<IFloorService, FloorService>();
+builder.Services.AddScoped<IQueueService, QueueService>();
+builder.Services.AddScoped<IDeviceService, DeviceService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<ILicenseService, LicenseService>();
 
-builder.Services.AddScoped<IFileStorageService, GoogleDriveService>();
+builder.Services.AddScoped<SignalRService>();
 
-// =============================
+builder.Services.AddSingleton<FileCacheService>();
+
+builder.Services.AddHostedService<AnnouncementCleanupService>();
+
+// =====================================================
+// KESTREL / PORT
+// =====================================================
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ListenAnyIP(5000);
+});
+
+// =====================================================
 // SWAGGER
-// =============================
+// =====================================================
 builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddSwaggerGen(options =>
 {
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "HospitalRoomAPI",
+        Version = "v1"
+    });
+
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -71,7 +113,7 @@ builder.Services.AddSwaggerGen(options =>
         Scheme = "bearer",
         BearerFormat = "JWT",
         In = ParameterLocation.Header,
-        Description = "Enter: Bearer {your JWT token}"
+        Description = "Enter: Bearer {your token}"
     });
 
     options.AddSecurityRequirement(new OpenApiSecurityRequirement
@@ -85,95 +127,137 @@ builder.Services.AddSwaggerGen(options =>
                     Id = "Bearer"
                 }
             },
-            new string[] {}
+            Array.Empty<string>()
         }
     });
 });
 
-// =============================
+// =====================================================
 // SIGNALR
-// =============================
+// =====================================================
 builder.Services.AddSignalR();
 
-// =============================
-// JWT AUTHENTICATION
-// =============================
-var jwtSettings = builder.Configuration.GetSection("Jwt");
-var key = Encoding.UTF8.GetBytes(jwtSettings["Key"]);
+// =====================================================
+// JWT AUTH
+// =====================================================
+var jwtSection = builder.Configuration.GetSection("Jwt");
+
+var key = Encoding.UTF8.GetBytes(jwtSection["Key"]!);
+
+// Program.cs
 
 builder.Services.AddAuthentication(options =>
 {
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultAuthenticateScheme =
+        JwtBearerDefaults.AuthenticationScheme;
+
+    options.DefaultChallengeScheme =
+        JwtBearerDefaults.AuthenticationScheme;
 })
 .AddJwtBearer(options =>
 {
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
+    options.TokenValidationParameters =
+        new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
 
-        ValidIssuer = jwtSettings["Issuer"],
-        ValidAudience = jwtSettings["Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(key)
-    };
+            // ✅ Disable token expiry check
+            ValidateLifetime = false,
+
+            ValidateIssuerSigningKey = true,
+
+            ValidIssuer = jwtSection["Issuer"],
+            ValidAudience = jwtSection["Audience"],
+
+            IssuerSigningKey =
+                new SymmetricSecurityKey(key)
+        };
 });
 
-// =============================
+// =====================================================
 // CORS
-// =============================
+// =====================================================
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowLocalhost", policy =>
+    options.AddPolicy("AllowAllDynamic", policy =>
     {
-        policy.SetIsOriginAllowed(origin =>
-            origin.StartsWith("http://localhost") ||
-            origin.StartsWith("http://192.168."))
-            .AllowAnyHeader()
-            .AllowAnyMethod()
-            .AllowCredentials();
+        policy.SetIsOriginAllowed(_ => true)
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
     });
 });
 
+// =====================================================
+// BUILD APP
+// =====================================================
 var app = builder.Build();
 
-// =============================
+// =====================================================
+// DEVELOPMENT TOOLS
+// =====================================================
+//if (app.Environment.IsDevelopment())
+//{
+//    app.UseSwagger();
+//    app.UseSwaggerUI();
+//}
+
+        app.UseSwagger();
+        app.UseSwaggerUI();
+
+// =====================================================
 // PIPELINE
-// =============================
+// =====================================================
 
-// ✅ Swagger only in dev
-if (app.Environment.IsDevelopment())
+// CORS FIRST
+app.UseCors("AllowAllDynamic");
+
+// ROUTING
+app.UseRouting();
+
+// =====================================================
+// STATIC FILES (NO WWWROOT REQUIRED)
+// Serves files from StoragePath => /files
+// =====================================================
+app.UseStaticFiles(new StaticFileOptions
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    FileProvider = new PhysicalFileProvider(storagePath),
+    RequestPath = "/files"
+});
 
-app.UseStaticFiles();
+// =====================================================
+// WEBSOCKETS / SIGNALR
+// =====================================================
+app.UseWebSockets();
 
-app.UseCors("AllowLocalhost");
-
-app.UseHttpsRedirection();
-
-// ✅ Auth first
+// =====================================================
+// AUTH
+// =====================================================
 app.UseAuthentication();
 app.UseAuthorization();
 
-// ✅ THEN License Middleware
+// =====================================================
+// CUSTOM MIDDLEWARE
+// =====================================================
 app.UseMiddleware<LicenseMiddleware>();
 
-// =============================
+// =====================================================
 // ENDPOINTS
-// =============================
+// =====================================================
 app.MapControllers();
+
 app.MapHub<RoomHub>("/roomHub");
 
-// =============================
-// OPTIONAL: PORT BINDING
-// =============================
-app.Urls.Add("http://0.0.0.0:5285");
+// =====================================================
+// lan port 
+// =====================================================
+app.Urls.Add("http://0.0.0.0:5000");
 
+
+// =====================================================
+// RUN
+// =====================================================
 app.Run();
 
 public partial class Program { }

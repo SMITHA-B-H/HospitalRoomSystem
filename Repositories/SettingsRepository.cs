@@ -137,8 +137,8 @@ namespace HospitalRoomAPI.Repositories
                 FileName = dto.File.FileName,
                 FilePath = url,
                 HospitalId = hospitalId,
-                FloorId = dto.FloorId,
-                RoomId = dto.RoomId
+                FloorId = dto.FloorId==0? null : dto.FloorId,
+                RoomId = dto.RoomId==0? null : dto.RoomId
             };
 
             _context.AdsVideos.Add(video);
@@ -158,5 +158,60 @@ namespace HospitalRoomAPI.Repositories
                 await _context.SaveChangesAsync();
             }
         }
+
+        public async Task<object>
+        GetPublicSettingsAsync()
+        {
+            var settings =
+                await _context.Settings
+                    .FirstOrDefaultAsync();
+
+            if (settings == null)
+            {
+                return null!;
+            }
+
+            return new
+            {
+                hospitalName =
+                    "Natus Women and Children Hospital",
+
+                logoUrl =
+                    settings.LogoUrl,
+
+                settings = new
+                {
+                    settings.Id,
+
+                    settings.HospitalId,
+
+                    settings.FloorId,
+
+                    settings.RoomId,
+
+                    settings.ScrollingMessage,
+
+                    settings.AdsVolume,
+
+                    settings.ShowClock,
+
+                    settings.LogoUrl,
+
+                    settings.ScrollingSpeed
+                },
+
+                videos =
+                    await _context.AdsVideos
+
+                        .Select(x => x.FilePath)
+
+                        .ToListAsync(),
+
+                announcements =
+                    new List<object>()
+            };
+        }
+
+
     }
 }

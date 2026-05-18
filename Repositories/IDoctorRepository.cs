@@ -9,7 +9,10 @@ namespace HospitalRoomAPI.Repositories
         Task AddAsync(Doctor doctor);
         Task RemoveAsync(Doctor doctor);
         Task SaveChangesAsync();
+        Task<Doctor?> GetByEmployeeIdAsync(string employeeId);
 
         Task<List<string>> GetDoctorRoomNumbersAsync(int doctorId);
+
+        Task<bool> UpdateDisplayAsync(int id,string displayNumber);
     }
 }

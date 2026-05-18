@@ -18,5 +18,9 @@ namespace HospitalRoomAPI.Repositories
         Task SaveLogo(string url, int hospitalId);
         Task<string> SaveVideo(string url, int hospitalId, UploadVideoDto dto);
         Task DeleteVideo(string path);
-	}
+
+        Task<object> GetPublicSettingsAsync();
+
+       
+    }
 }

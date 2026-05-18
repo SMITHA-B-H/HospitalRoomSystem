@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using HospitalRoomAPI.Data;
 using HospitalRoomAPI.Models;
+using HospitalRoomAPI.DTOs;
 
 namespace HospitalRoomAPI.Repositories
 {
@@ -13,6 +14,7 @@ namespace HospitalRoomAPI.Repositories
             _context = context;
         }
 
+        // ================= ROOM WITH DETAILS =================
         public async Task<Room?> GetRoomWithDetailsAsync(string roomNumber)
         {
             return await _context.Rooms
@@ -24,6 +26,7 @@ namespace HospitalRoomAPI.Repositories
                 .FirstOrDefaultAsync(r => r.RoomNumber == roomNumber);
         }
 
+        // ================= SETTINGS =================
         public async Task<Setting?> GetSettingsAsync(int hospitalId, int roomId, int floorId)
         {
             return await _context.Settings.FirstOrDefaultAsync(s =>
@@ -32,20 +35,25 @@ namespace HospitalRoomAPI.Repositories
                 (s.FloorId == floorId || s.FloorId == null));
         }
 
+        // ================= ADS VIDEOS =================
         public async Task<List<string>> GetVideosAsync(int hospitalId, int roomId, int floorId)
         {
-            return await _context.AdsVideos
+            var videos = await _context.AdsVideos
                 .Where(v =>
                     v.HospitalId == hospitalId &&
                     (v.RoomId == null || v.RoomId == roomId) &&
                     (v.FloorId == null || v.FloorId == floorId))
-                .Select(v => Path.GetFileName(v.FilePath))
+                .Select(v => v.FilePath) // ✅ ONLY DB FIELD (EF SAFE)
                 .ToListAsync();
+
+            // ✅ Convert AFTER DB call
+            return videos;
         }
 
-        public async Task<List<object>> GetAnnouncementsAsync(int hospitalId, int roomId, int floorId)
+        // ================= ANNOUNCEMENTS =================
+        public async Task<List<AnnouncementDisplayDto>> GetAnnouncementsAsync(int hospitalId, int roomId, int floorId)
         {
-            return await _context.PatientAnnouncements
+            var data = await _context.PatientAnnouncements
                 .Where(a =>
                     a.IsActive &&
                     (a.ExpiryTime == null || a.ExpiryTime > DateTime.UtcNow) &&
@@ -58,22 +66,27 @@ namespace HospitalRoomAPI.Repositories
                 )
                 .OrderByDescending(a => a.CreatedAt)
                 .Take(5)
-                .Select(a => new
+                .Select(a => new AnnouncementDisplayDto
                 {
-                    a.Id,
-                    a.PatientName,
-                    a.Message,
-                    a.CreatedAt,
-                    a.ExpiryTime,
-                    a.PosterUrl,
-                    a.VideoUrl,
-                    a.IsActive,
-                    a.ExpiryHours
+                    Id = a.Id,
+                    PatientName = a.PatientName,
+                    Message = a.Message,
+                    CreatedAt = a.CreatedAt,
+                    ExpiryTime = a.ExpiryTime,
+                    PosterUrl = a.PosterUrl,
+                    VideoUrl = a.VideoUrl,
+                    IsActive = a.IsActive,
+                    ExpiryHours = a.ExpiryHours
                 })
-                .ToListAsync<object>();
+                .ToListAsync();
+
+            // ✅ Fix URLs AFTER DB call
+            
+
+            return data;
         }
 
-        // ✅ IMPLEMENT MISSING METHOD
+        // ================= ROOM SCOPE =================
         public async Task<List<string>> GetRoomNumbersByScope(int? roomId, int? floorId, int hospitalId)
         {
             if (roomId != null)
@@ -98,5 +111,7 @@ namespace HospitalRoomAPI.Repositories
                 .Select(r => r.RoomNumber)
                 .ToListAsync();
         }
+
+
     }
 }

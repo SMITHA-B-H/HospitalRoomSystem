@@ -9,35 +9,43 @@ namespace HospitalRoomAPI.Services
     {
         private readonly IDoctorRepository _repository;
         private readonly IDisplayService _displayService;
-        private readonly IFileStorageService _fileService;
+        private readonly IConfiguration _config;
 
         public DoctorService(
             IDoctorRepository repository,
             IDisplayService displayService,
-            IFileStorageService fileService)
+            IConfiguration config)
         {
             _repository = repository;
             _displayService = displayService;
-            _fileService = fileService;
+            _config = config;
+        }
+
+        private string GetRootPath() => _config["StoragePath"]!;
+
+        private async Task<string> SaveDoctorImage(IFormFile file)
+        {
+            var folder = Path.Combine(GetRootPath(), "doctors");
+            Directory.CreateDirectory(folder);
+
+            var fileName = $"{Guid.NewGuid()}_{file.FileName}";
+            var filePath = Path.Combine(folder, fileName);
+
+            using var stream = new FileStream(filePath, FileMode.Create);
+            await file.CopyToAsync(stream);
+
+            return $"/files/doctors/{fileName}";
         }
 
         // ================= GET =================
         public async Task<ApiResponse<List<Doctor>>> GetDoctorsAsync(int hospitalId)
         {
             var doctors = await _repository.GetDoctorsAsync(hospitalId);
-
-            return new ApiResponse<List<Doctor>>
-            {
-                Success = true,
-                Data = doctors
-            };
+            return new ApiResponse<List<Doctor>> { Success = true, Data = doctors };
         }
 
         // ================= CREATE =================
-        public async Task<ApiResponse<Doctor>> AddDoctorAsync(
-            DoctorDto dto,
-            int hospitalId,
-            string role)
+        public async Task<ApiResponse<Doctor>> AddDoctorAsync(DoctorDto dto, int hospitalId, string role)
         {
             if (role != "SuperAdmin")
                 return new ApiResponse<Doctor> { Success = false, Message = "Forbidden" };
@@ -45,14 +53,14 @@ namespace HospitalRoomAPI.Services
             string? photoUrl = null;
 
             if (dto.Photo != null)
-            {
-                photoUrl = await _fileService.UploadAsync(dto.Photo);
-            }
+                photoUrl = await SaveDoctorImage(dto.Photo);
 
             var doctor = new Doctor
             {
+                EmployeeId = dto.EmployeeId,
                 Name = dto.Name,
                 Department = dto.Department,
+                Role = dto.Role,
                 PhotoUrl = photoUrl,
                 HospitalId = hospitalId
             };
@@ -62,11 +70,7 @@ namespace HospitalRoomAPI.Services
 
             await PushUpdates(doctor.Id);
 
-            return new ApiResponse<Doctor>
-            {
-                Success = true,
-                Data = doctor
-            };
+            return new ApiResponse<Doctor> { Success = true, Data = doctor };
         }
 
         // ================= UPDATE =================
@@ -79,32 +83,26 @@ namespace HospitalRoomAPI.Services
 
             doctor.Name = dto.Name;
             doctor.Department = dto.Department;
+            doctor.EmployeeId = dto.EmployeeId;
+            doctor.Role = dto.Role;
 
-            // ?? IMPORTANT FIX
             if (dto.Photo != null)
             {
-                // OPTIONAL: delete old file
                 if (!string.IsNullOrEmpty(doctor.PhotoUrl))
                 {
-                    var oldFileId = ExtractFileId(doctor.PhotoUrl);
-                    await _fileService.DeleteAsync(oldFileId);
+                    var oldPath = Path.Combine(GetRootPath(), doctor.PhotoUrl.Replace("/files/", ""));
+                    if (File.Exists(oldPath))
+                        File.Delete(oldPath);
                 }
 
-                var newUrl = await _fileService.UploadAsync(dto.Photo);
-
-                // ? FORCE UPDATE
-                doctor.PhotoUrl = newUrl;
+                doctor.PhotoUrl = await SaveDoctorImage(dto.Photo);
             }
 
             await _repository.SaveChangesAsync();
 
             await PushUpdates(id);
 
-            return new ApiResponse<Doctor>
-            {
-                Success = true,
-                Data = doctor
-            };
+            return new ApiResponse<Doctor> { Success = true, Data = doctor };
         }
 
         // ================= DELETE =================
@@ -113,17 +111,13 @@ namespace HospitalRoomAPI.Services
             var doctor = await _repository.GetByIdAsync(id);
 
             if (doctor == null)
-                return new ApiResponse<Doctor>
-                {
-                    Success = false,
-                    Message = "Not found"
-                };
+                return new ApiResponse<Doctor> { Success = false, Message = "Not found" };
 
-            // ?? DELETE FILE FROM DRIVE
             if (!string.IsNullOrEmpty(doctor.PhotoUrl))
             {
-                var fileId = ExtractFileId(doctor.PhotoUrl);
-                await _fileService.DeleteAsync(fileId);
+                var fullPath = Path.Combine(GetRootPath(), doctor.PhotoUrl.Replace("/files/", ""));
+                if (File.Exists(fullPath))
+                    File.Delete(fullPath);
             }
 
             await _repository.RemoveAsync(doctor);
@@ -131,14 +125,9 @@ namespace HospitalRoomAPI.Services
 
             await PushUpdates(id);
 
-            return new ApiResponse<Doctor>
-            {
-                Success = true,
-                Data = doctor
-            };
+            return new ApiResponse<Doctor> { Success = true, Data = doctor };
         }
 
-        // ================= COMMON =================
         private async Task PushUpdates(int doctorId)
         {
             var rooms = await _repository.GetDoctorRoomNumbersAsync(doctorId);
@@ -150,19 +139,12 @@ namespace HospitalRoomAPI.Services
             await Task.WhenAll(tasks);
         }
 
-        // ================= HELPER =================
-        private string ExtractFileId(string url)
-        {
-            try
+        public async Task<bool>UpdateDisplayAsync(int id,string displayNumber)
             {
-                var uri = new Uri(url);
-                var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
-                return query["id"];
+                return await _repository
+                    .UpdateDisplayAsync(
+                        id,
+                        displayNumber);
             }
-            catch
-            {
-                return string.Empty;
-            }
-        }
     }
 }

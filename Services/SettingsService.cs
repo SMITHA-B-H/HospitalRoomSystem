@@ -4,7 +4,7 @@ using HospitalRoomAPI.Data;
 using HospitalRoomAPI.Models;
 using HospitalRoomAPI.Models.Common;
 using Microsoft.AspNetCore.Http;
-using Microsoft.EntityFrameworkCore;   // ✅ IMPORTANT
+using Microsoft.EntityFrameworkCore;
 
 namespace HospitalRoomAPI.Services
 {
@@ -12,19 +12,44 @@ namespace HospitalRoomAPI.Services
     {
         private readonly ISettingsRepository _repo;
         private readonly IDisplayService _display;
-        private readonly IFileStorageService _fileService;
-        private readonly AppDbContext _context;   // ✅ MOVED INSIDE CLASS
+        private readonly AppDbContext _context;
+        private readonly IConfiguration _config;
 
         public SettingsService(
             ISettingsRepository repo,
             IDisplayService display,
-            IFileStorageService fileService,
-            AppDbContext context)
+            AppDbContext context,
+            IConfiguration config)
         {
             _repo = repo;
             _display = display;
-            _fileService = fileService;
-            _context = context;   // ✅ ASSIGNED
+            _context = context;
+            _config = config;
+        }
+
+        // ================= HELPER =================
+        private string GetRootPath()
+        {
+            return _config["StoragePath"]!;
+        }
+
+        private void DeleteLocalFile(string? url)
+        {
+            if (string.IsNullOrEmpty(url))
+                return;
+
+            try
+            {
+                var relativePath = url.Replace("/files/", "");
+                var fullPath = Path.Combine(GetRootPath(), relativePath);
+
+                if (File.Exists(fullPath))
+                    File.Delete(fullPath);
+            }
+            catch
+            {
+                // optional logging
+            }
         }
 
         // ================= SAVE SETTINGS =================
@@ -43,13 +68,17 @@ namespace HospitalRoomAPI.Services
             existing.ScrollingMessage = dto.ScrollingMessage;
             existing.AdsVolume = dto.AdsVolume;
             existing.ScrollingSpeed = dto.ScrollingSpeed;
+            existing.ShowClock = dto.ShowClock;
 
             await _repo.SaveSettings(existing);
 
             var rooms = await _repo.GetRoomNumbers(null, null, hospitalId);
 
-            var tasks = rooms.Select(r => _display.PushRoomUpdate(r));
-            await Task.WhenAll(tasks);
+            // ? FIX: sequential execution (NO Task.WhenAll)
+            foreach (var room in rooms)
+            {
+                await _display.PushRoomUpdate(room);
+            }
 
             return new ApiResponse<object>
             {
@@ -103,13 +132,41 @@ namespace HospitalRoomAPI.Services
         // ================= UPLOAD LOGO =================
         public async Task<ApiResponse<string>> UploadLogo(IFormFile file, int hospitalId)
         {
-            var url = await _fileService.UploadAsync(file);
+            if (file == null || file.Length == 0)
+            {
+                return new ApiResponse<string>
+                {
+                    Success = false,
+                    Message = "File not selected"
+                };
+            }
+
+            var folder = Path.Combine(GetRootPath(), "settings", "logos");
+
+            if (!Directory.Exists(folder))
+                Directory.CreateDirectory(folder);
+
+            var fileName = $"{hospitalId}_{Guid.NewGuid()}_{file.FileName}";
+            var filePath = Path.Combine(folder, fileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            var url = $"/files/settings/logos/{fileName}";
+
+            var existing = await _repo.GetSettings(hospitalId, null, null);
+            if (!string.IsNullOrEmpty(existing?.LogoUrl))
+            {
+                DeleteLocalFile(existing.LogoUrl);
+            }
 
             await _repo.SaveLogo(url, hospitalId);
 
             return new ApiResponse<string>
             {
-                Success = !string.IsNullOrEmpty(url),
+                Success = true,
                 Data = url
             };
         }
@@ -117,18 +174,43 @@ namespace HospitalRoomAPI.Services
         // ================= UPLOAD VIDEO =================
         public async Task<ApiResponse<string>> UploadVideo(UploadVideoDto dto, int hospitalId)
         {
-            var url = await _fileService.UploadAsync(dto.File);
+            if (dto.File == null || dto.File.Length == 0)
+            {
+                return new ApiResponse<string>
+                {
+                    Success = false,
+                    Message = "File not selected"
+                };
+            }
+
+            var folder = Path.Combine(GetRootPath(), "settings", "videos");
+
+            if (!Directory.Exists(folder))
+                Directory.CreateDirectory(folder);
+
+            var fileName = $"{hospitalId}_{Guid.NewGuid()}_{dto.File.FileName}";
+            var filePath = Path.Combine(folder, fileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await dto.File.CopyToAsync(stream);
+            }
+
+            var url = $"/files/settings/videos/{fileName}";
 
             await _repo.SaveVideo(url, hospitalId, dto);
 
             var rooms = await _repo.GetRoomNumbers(null, null, hospitalId);
 
-            var tasks = rooms.Select(r => _display.PushRoomUpdate(r));
-            await Task.WhenAll(tasks);
+            // ? FIX: sequential execution
+            foreach (var room in rooms)
+            {
+                await _display.PushRoomUpdate(room);
+            }
 
             return new ApiResponse<string>
             {
-                Success = !string.IsNullOrEmpty(url),
+                Success = true,
                 Data = url
             };
         }
@@ -145,30 +227,78 @@ namespace HospitalRoomAPI.Services
                 };
             }
 
-            var fileId = ExtractFileId(path);
-
-            await _fileService.DeleteAsync(fileId);
-            await _repo.DeleteVideo(path);
-
-            var rooms = await _repo.GetRoomNumbers(null, null, hospitalId);
-
-            var tasks = rooms.Select(r => _display.PushRoomUpdate(r));
-            await Task.WhenAll(tasks);
-
-            return new ApiResponse<object>
+            try
             {
-                Success = true
-            };
+                // ================= STEP 1: CLEAN PATH =================
+                string cleanPath = path;
+
+                // ? if full URL ? convert to relative
+                if (cleanPath.StartsWith("http"))
+                {
+                    var uri = new Uri(cleanPath);
+                    cleanPath = uri.AbsolutePath; // /files/settings/videos/abc.mp4
+                }
+
+                // ? decode URL (handles %20 spaces)
+                cleanPath = Uri.UnescapeDataString(cleanPath);
+
+                // ================= STEP 2: BUILD FILE PATH =================
+                // remove "/files/"
+                var relativePath = cleanPath.Replace("/files/", "");
+
+                // build physical path
+                var fullPath = Path.Combine(GetRootPath(), relativePath);
+
+                Console.WriteLine("DELETE REQUEST PATH: " + path);
+                Console.WriteLine("RELATIVE PATH: " + relativePath);
+                Console.WriteLine("FULL FILE PATH: " + fullPath);
+
+                // ================= STEP 3: DELETE FILE =================
+                if (File.Exists(fullPath))
+                {
+                    File.Delete(fullPath);
+                    Console.WriteLine("FILE DELETED SUCCESSFULLY ?");
+                }
+                else
+                {
+                    Console.WriteLine("FILE NOT FOUND ?");
+                }
+
+                // ================= STEP 4: DELETE DB =================
+                await _repo.DeleteVideo(cleanPath);
+
+                // ================= STEP 5: PUSH UPDATES =================
+                var rooms = await _repo.GetRoomNumbers(null, null, hospitalId);
+
+                foreach (var room in rooms)
+                {
+                    await _display.PushRoomUpdate(room);
+                }
+
+                return new ApiResponse<object>
+                {
+                    Success = true
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("DELETE ERROR: " + ex.Message);
+
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
+            }
         }
 
-        // ✅ ================= MAIN FIX =================
+        // ================= GET SETTINGS =================
         public async Task<ApiResponse<object>> GetSettingsByHospital(int hospitalId)
         {
             var settings = await _repo.GetSettings(hospitalId, null, null);
             var videos = await _repo.GetVideos(hospitalId, null, null);
             var announcements = await _repo.GetAnnouncements(hospitalId, null, null);
 
-            // ✅ GET HOSPITAL NAME FROM TABLE
             var hospital = await _context.Hospitals
                 .Where(h => h.Id == hospitalId)
                 .Select(h => new { h.Name })
@@ -188,12 +318,12 @@ namespace HospitalRoomAPI.Services
             };
         }
 
-        // ================= HELPER =================
-        private string ExtractFileId(string url)
+        public async Task<object>
+        GetPublicSettingsAsync()
         {
-            var uri = new Uri(url);
-            var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
-            return query["id"];
+            return await
+                _repo
+                    .GetPublicSettingsAsync();
         }
     }
 }

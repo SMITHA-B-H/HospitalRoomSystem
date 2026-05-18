@@ -151,4 +151,34 @@ public class FloorsControllerTests
 
         Assert.IsType<NotFoundObjectResult>(result);
     }
+
+   
+    [Fact]
+    public async Task DeleteFloor_WhenRoomsExist_ReturnsNotFound()
+    {
+        _serviceMock
+            .Setup(s => s.DeleteFloorAsync(1))
+            .ReturnsAsync(new ApiResponse<Floor>
+            {
+                Success = false,
+                Message = "Floor cannot be deleted because rooms exist."
+            });
+
+        var controller = GetController();
+
+        var result = await controller.DeleteFloor(1);
+
+        var notFound = Assert.IsType<NotFoundObjectResult>(result);
+
+        var response = Assert.IsType<ApiResponse<Floor>>(notFound.Value);
+
+        Assert.False(response.Success);
+
+        Assert.Equal(
+            "Floor cannot be deleted because rooms exist.",
+            response.Message);
+    }
+
+
+
 }

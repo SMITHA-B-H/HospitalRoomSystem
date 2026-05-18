@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using HospitalRoomAPI.Models;
 using HospitalRoomAPI.Services;
 using Microsoft.AspNetCore.Http;
+using HospitalRoomAPI.DTOs;
 
 namespace HospitalRoomAPI.Controllers
 {
@@ -54,18 +55,33 @@ namespace HospitalRoomAPI.Controllers
             return Ok(await _service.GetPatientsByRoom(roomId));
         }
 
+
         [Authorize]
         [HttpPost("upload-announcement-poster")]
-        public async Task<IActionResult> UploadPoster(IFormFile file)
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> UploadPoster([FromForm] UploadAnnouncementDto model)
         {
-            return Ok(await _service.UploadPoster(file));
+            var result = await _service.UploadPoster(model.File, model.AnnouncementId);
+
+            if (!result.Success)
+                return BadRequest(result);
+
+            return Ok(result);
         }
 
         [Authorize]
         [HttpPost("upload-announcement-video")]
-        public async Task<IActionResult> UploadVideo(IFormFile file)
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> UploadVideo([FromForm] UploadAnnouncementDto model)
         {
-            return Ok(await _service.UploadVideo(file));
+            var result = await _service.UploadVideo(model.File, model.AnnouncementId);
+
+            if (!result.Success)
+                return BadRequest(result);
+
+            return Ok(result);
         }
+
+
     }
 }

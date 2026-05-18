@@ -29,6 +29,20 @@ namespace HospitalRoomAPI.Services
 
         public async Task<ApiResponse<Floor>> AddFloorAsync(CreateFloorDto dto, int hospitalId)
         {
+
+            var existingFloor = (await _repository.GetFloorsAsync(hospitalId))
+            .FirstOrDefault(f =>
+                f.FloorName!.ToLower() == dto.FloorName.ToLower());
+
+            if (existingFloor != null)
+            {
+                return new ApiResponse<Floor>
+                {
+                    Success = false,
+                    Message = "Floor already exists."
+                };
+            }
+
             var floor = new Floor
             {
                 FloorName = dto.FloorName,
@@ -95,6 +109,16 @@ namespace HospitalRoomAPI.Services
             if (floor == null)
                 return new ApiResponse<Floor> { Success = false, Message = "Not found" };
 
+            // Prevent delete if rooms exist
+            if (floor.Rooms != null && floor.Rooms.Any())
+            {
+                return new ApiResponse<Floor>
+                {
+                    Success = false,
+                    Message = "Floor cannot be deleted because rooms exist."
+                };
+            }
+
             var rooms = await _repository.GetRoomNumbersByFloorIdAsync(id);
 
             await _repository.DeleteFloorAsync(floor);
@@ -109,6 +133,7 @@ namespace HospitalRoomAPI.Services
             return new ApiResponse<Floor>
             {
                 Success = true,
+                Message = "Floor deleted successfully",
                 Data = floor
             };
         }

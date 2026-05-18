@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
 
 namespace HospitalRoomAPI.Models
 {
@@ -8,12 +7,16 @@ namespace HospitalRoomAPI.Models
         public int Id { get; set; }
 
         [Required]
-        public string? Name { get; set; }
+        public string? EmployeeId { get; set; }   // EMP001
 
-        //public int FloorId { get; set; }
+        [Required]
+        public string? Name { get; set; }
 
         [Required]
         public string? Department { get; set; }
+
+        [Required]
+        public string? Role { get; set; }   // Doctor / Nurse / LAB / SCAN / XRAY
 
         public string? PhotoUrl { get; set; }
 
@@ -21,5 +24,6 @@ namespace HospitalRoomAPI.Models
 
         public Hospital Hospital { get; set; }
 
+        public string DisplayNumber { get; set; } = "";
     }
 }

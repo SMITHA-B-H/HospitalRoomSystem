@@ -2,148 +2,186 @@ using Xunit;
 using Moq;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.SignalR;
 using System.Security.Claims;
 
 using HospitalRoomAPI.Controllers;
 using HospitalRoomAPI.Services;
 using HospitalRoomAPI.DTOs;
 using HospitalRoomAPI.Models.Common;
+using HospitalRoomAPI.Hubs;
 
-public class SettingsControllerTests
+namespace HospitalRoomAPI.Tests.Controllers
 {
-    private readonly Mock<ISettingsService> _serviceMock = new();
-
-    private SettingsController GetController()
+    public class SettingsControllerTests
     {
-        var controller = new SettingsController(_serviceMock.Object);
+        private readonly Mock<ISettingsService> _serviceMock = new();
 
-        var user = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        private readonly Mock<IHubContext<RoomHub>> _hubMock = new();
+
+        private SettingsController GetController()
         {
+            var clientProxyMock = new Mock<IClientProxy>();
+
+            var hubClientsMock = new Mock<IHubClients>();
+
+            hubClientsMock
+                .Setup(c => c.All)
+                .Returns(clientProxyMock.Object);
+
+            _hubMock
+                .Setup(h => h.Clients)
+                .Returns(hubClientsMock.Object);
+
+            var controller = new SettingsController(
+                _serviceMock.Object,
+                _hubMock.Object
+            );
+
+            var user = new ClaimsPrincipal(
+                new ClaimsIdentity(new[]
+                {
             new Claim("HospitalId", "1")
-        }, "mock"));
+                }, "mock"));
 
-        controller.ControllerContext = new ControllerContext
+            controller.ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = user
+                }
+            };
+
+            return controller;
+        }
+
+        // ================= GET DISPLAY =================
+
+        [Fact]
+        public async Task GetDisplaySettings_ReturnsOk()
         {
-            HttpContext = new DefaultHttpContext { User = user }
-        };
+            _serviceMock
+                .Setup(s => s.GetDisplaySettings(1))
+                .ReturnsAsync(new ApiResponse<object>
+                {
+                    Success = true
+                });
 
-        return controller;
-    }
+            var controller = GetController();
 
-    // ================= GET DISPLAY =================
+            var result = await controller.GetDisplaySettings(1);
 
-    [Fact]
-    public async Task GetDisplaySettings_ReturnsOk()
-    {
-        _serviceMock
-            .Setup(s => s.GetDisplaySettings(1))
-            .ReturnsAsync(new ApiResponse<object>
-            {
-                Success = true
-            });
+            var ok = Assert.IsType<OkObjectResult>(result);
 
-        var controller = GetController();
+            var data = Assert.IsType<ApiResponse<object>>(ok.Value);
 
-        var result = await controller.GetDisplaySettings(1);
+            Assert.True(data.Success);
+        }
 
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var data = Assert.IsType<ApiResponse<object>>(ok.Value);
+        // ================= SAVE SETTINGS =================
 
-        Assert.True(data.Success);
-    }
+        [Fact]
+        public async Task SaveSettings_ReturnsOk()
+        {
+            var dto = new SaveSettingsDto();
 
-    // ================= SAVE SETTINGS =================
+            _serviceMock
+                .Setup(s => s.SaveSettings(dto, 1))
+                .ReturnsAsync(new ApiResponse<object>
+                {
+                    Success = true
+                });
 
-    [Fact]
-    public async Task SaveSettings_ReturnsOk()
-    {
-        var dto = new SaveSettingsDto();
+            var controller = GetController();
 
-        _serviceMock
-            .Setup(s => s.SaveSettings(dto, 1))
-            .ReturnsAsync(new ApiResponse<object>
-            {
-                Success = true
-            });
+            var result = await controller.SaveSettings(dto);
 
-        var controller = GetController();
+            var ok = Assert.IsType<OkObjectResult>(result);
 
-        var result = await controller.SaveSettings(dto);
+            var data = Assert.IsType<ApiResponse<object>>(ok.Value);
 
-        Assert.IsType<OkObjectResult>(result);
-    }
+            Assert.True(data.Success);
+        }
 
-    // ================= UPLOAD LOGO =================
+        // ================= UPLOAD LOGO =================
 
-    [Fact]
-    public async Task UploadLogo_ReturnsOk()
-    {
-        var fileMock = new Mock<IFormFile>();
+        [Fact]
+        public async Task UploadLogo_ReturnsOk()
+        {
+            var fileMock = new Mock<IFormFile>();
 
-        _serviceMock
-            .Setup(s => s.UploadLogo(fileMock.Object, 1))
-            .ReturnsAsync(new ApiResponse<string>
-            {
-                Success = true,
-                Data = "logo.png"
-            });
+            _serviceMock
+                .Setup(s => s.UploadLogo(fileMock.Object, 1))
+                .ReturnsAsync(new ApiResponse<string>
+                {
+                    Success = true,
+                    Data = "logo.png"
+                });
 
-        var controller = GetController();
+            var controller = GetController();
 
-        var result = await controller.UploadLogo(fileMock.Object);
+            var result = await controller.UploadLogo(fileMock.Object);
 
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var data = Assert.IsType<ApiResponse<string>>(ok.Value);
+            var ok = Assert.IsType<OkObjectResult>(result);
 
-        Assert.True(data.Success);
-    }
+            var data = Assert.IsType<ApiResponse<string>>(ok.Value);
 
-    // ================= UPLOAD VIDEO =================
+            Assert.True(data.Success);
 
-    [Fact]
-    public async Task UploadVideo_ReturnsOk()
-    {
-        var dto = new UploadVideoDto();
+            Assert.Equal("logo.png", data.Data);
+        }
 
-        _serviceMock
-            .Setup(s => s.UploadVideo(dto, 1))
-            .ReturnsAsync(new ApiResponse<string>
-            {
-                Success = true,
-                Data = "video.mp4"
-            });
+        // ================= UPLOAD VIDEO =================
 
-        var controller = GetController();
+        [Fact]
+        public async Task UploadVideo_ReturnsOk()
+        {
+            var dto = new UploadVideoDto();
 
-        var result = await controller.UploadVideo(dto);
+            _serviceMock
+                .Setup(s => s.UploadVideo(dto, 1))
+                .ReturnsAsync(new ApiResponse<string>
+                {
+                    Success = true,
+                    Data = "video.mp4"
+                });
 
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var data = Assert.IsType<ApiResponse<string>>(ok.Value);
+            var controller = GetController();
 
-        Assert.True(data.Success);
-    }
+            var result = await controller.UploadVideo(dto);
 
-    // ================= DELETE VIDEO =================
+            var ok = Assert.IsType<OkObjectResult>(result);
 
-    [Fact]
-    public async Task DeleteVideo_ReturnsOk()
-    {
-        string path = "/videos/test.mp4";
+            var data = Assert.IsType<ApiResponse<string>>(ok.Value);
 
-        _serviceMock
-            .Setup(s => s.DeleteVideo(path, 1))
-            .ReturnsAsync(new ApiResponse<object>
-            {
-                Success = true
-            });
+            Assert.True(data.Success);
 
-        var controller = GetController();
+            Assert.Equal("video.mp4", data.Data);
+        }
 
-        var result = await controller.DeleteVideo(path);
+        // ================= DELETE VIDEO =================
 
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var data = Assert.IsType<ApiResponse<object>>(ok.Value);
+        [Fact]
+        public async Task DeleteVideo_ReturnsOk()
+        {
+            string path = "/videos/test.mp4";
 
-        Assert.True(data.Success);
+            _serviceMock
+                .Setup(s => s.DeleteVideo(path, 1))
+                .ReturnsAsync(new ApiResponse<object>
+                {
+                    Success = true
+                });
+
+            var controller = GetController();
+
+            var result = await controller.DeleteVideo(path);
+
+            var ok = Assert.IsType<OkObjectResult>(result);
+
+            var data = Assert.IsType<ApiResponse<object>>(ok.Value);
+
+            Assert.True(data.Success);
+        }
     }
 }

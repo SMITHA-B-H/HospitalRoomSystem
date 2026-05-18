@@ -3,18 +3,29 @@ using Moq;
 using Microsoft.AspNetCore.Mvc;
 using HospitalRoomAPI.Controllers;
 using HospitalRoomAPI.Services;
+using HospitalRoomAPI.Repositories;
 using HospitalRoomAPI.DTOs;
 using HospitalRoomAPI.Models.Common;
 
 public class AuthControllerTests
 {
     private readonly Mock<IAuthService> _serviceMock = new();
+    private readonly Mock<IDoctorRepository> _repoMock = new();
 
+    // ==========================================
+    // FIXED CONTROLLER CREATION
+    // ==========================================
     private AuthController GetController()
     {
-        return new AuthController(_serviceMock.Object);
+        return new AuthController(
+            _serviceMock.Object,
+            _repoMock.Object
+        );
     }
 
+    // ==========================================
+    // REGISTER TEST
+    // ==========================================
     [Fact]
     public async Task RegisterHospital_ReturnsOk_WhenSuccess()
     {
@@ -27,22 +38,31 @@ public class AuthControllerTests
             Password = "123456"
         };
 
-        _serviceMock.Setup(x => x.RegisterHospitalAsync(dto))
-            .ReturnsAsync(new ApiResponse<object>   // ✅ FIXED TYPE
+        _serviceMock
+            .Setup(x => x.RegisterHospitalAsync(dto))
+            .ReturnsAsync(new ApiResponse<object>
             {
                 Success = true,
                 Data = "token",
                 Message = "Success"
             });
 
-        var result = await controller.Register(dto); // ✅ FIXED METHOD
+        var result = await controller.Register(dto);
 
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var response = Assert.IsType<ApiResponse<object>>(ok.Value);
+        var ok =
+            Assert.IsType<OkObjectResult>(result);
+
+        var response =
+            Assert.IsType<ApiResponse<object>>(
+                ok.Value
+            );
 
         Assert.True(response.Success);
     }
 
+    // ==========================================
+    // LOGIN FAIL TEST
+    // ==========================================
     [Fact]
     public async Task Login_ReturnsUnauthorized_WhenFailed()
     {
@@ -54,8 +74,9 @@ public class AuthControllerTests
             Password = "wrong"
         };
 
-        _serviceMock.Setup(x => x.LoginAsync(dto))
-            .ReturnsAsync(new ApiResponse<object>   // ✅ FIXED TYPE
+        _serviceMock
+            .Setup(x => x.LoginAsync(dto))
+            .ReturnsAsync(new ApiResponse<object>
             {
                 Success = false,
                 Message = "Invalid",
@@ -64,6 +85,8 @@ public class AuthControllerTests
 
         var result = await controller.Login(dto);
 
-        Assert.IsType<UnauthorizedObjectResult>(result);
+        Assert.IsType<UnauthorizedObjectResult>(
+            result
+        );
     }
 }

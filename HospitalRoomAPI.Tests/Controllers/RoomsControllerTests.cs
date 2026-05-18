@@ -161,4 +161,50 @@ public class RoomsControllerTests
         var response = Assert.IsType<ApiResponse<Room>>(ok.Value);
         Assert.True(response.Success);
     }
+
+    [Fact]
+    public async Task DeleteRoom_WhenRoomExistsInFloor_ReturnsBadRequest()
+    {
+        var controller = GetController();
+
+        _serviceMock.Setup(x => x.DeleteRoomAsync(1, "Admin", 1, 1))
+            .ReturnsAsync(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Room cannot be deleted because beds exist."
+            });
+
+        var result = await controller.DeleteRoom(1);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+
+        var message = Assert.IsType<string>(badRequest.Value);
+
+        Assert.Equal("Room cannot be deleted because beds exist.", message);
+    }
+
+    [Fact]
+    public async Task DeleteRoom_WhenPatientExistsInRoom_ReturnsBadRequest()
+    {
+        var controller = GetController();
+
+        _serviceMock.Setup(x => x.DeleteRoomAsync(1, "Admin", 1, 1))
+            .ReturnsAsync(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Room cannot be deleted because patient is present."
+            });
+
+        var result = await controller.DeleteRoom(1);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+
+        var message = Assert.IsType<string>(badRequest.Value);
+
+        Assert.Equal(
+            "Room cannot be deleted because patient is present.",
+            message);
+    }
+
+
 }

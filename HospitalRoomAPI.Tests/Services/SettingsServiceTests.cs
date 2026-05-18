@@ -11,18 +11,19 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using HospitalRoomAPI.Data;
 using System;
+using Microsoft.Extensions.Configuration;
+using System.IO;
 
 public class SettingsServiceTests
 {
     private readonly Mock<ISettingsRepository> _repoMock = new();
     private readonly Mock<IDisplayService> _displayMock = new();
-    private readonly Mock<IFileStorageService> _fileMock = new();
 
-    // ? Create InMemory DB
+    // ? InMemory DB
     private AppDbContext GetDbContext()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString()) // unique DB per test
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
 
         return new AppDbContext(options);
@@ -30,11 +31,18 @@ public class SettingsServiceTests
 
     private SettingsService GetService(AppDbContext context)
     {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                { "StoragePath", Path.GetTempPath() }
+            })
+            .Build();
+
         return new SettingsService(
             _repoMock.Object,
             _displayMock.Object,
-            _fileMock.Object,
-            context   // ? FIXED
+            context,
+            config
         );
     }
 
@@ -79,16 +87,30 @@ public class SettingsServiceTests
 
         var fileMock = new Mock<IFormFile>();
 
-        _fileMock.Setup(f => f.UploadAsync(fileMock.Object))
-                 .ReturnsAsync("https://drive.google.com/uc?id=123");
+        var content = "logo";
+        var fileName = "logo.png";
+        var ms = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(content));
+
+        fileMock.Setup(f => f.OpenReadStream()).Returns(ms);
+        fileMock.Setup(f => f.FileName).Returns(fileName);
+        fileMock.Setup(f => f.Length).Returns(ms.Length);
+        fileMock.Setup(f => f.CopyToAsync(It.IsAny<Stream>(), default))
+                .Returns((Stream stream, CancellationToken token) =>
+                {
+                    ms.CopyTo(stream);
+                    return Task.CompletedTask;
+                });
 
         _repoMock.Setup(r => r.SaveLogo(It.IsAny<string>(), It.IsAny<int>()))
                  .Returns(Task.CompletedTask);
 
+        _repoMock.Setup(r => r.GetSettings(It.IsAny<int>(), null, null))
+                 .ReturnsAsync((Setting?)null);
+
         var result = await service.UploadLogo(fileMock.Object, 1);
 
         Assert.True(result.Success);
-        Assert.Equal("https://drive.google.com/uc?id=123", result.Data);
+        Assert.Contains("/files/settings/logos/", result.Data);
     }
 
     // ================= UPLOAD VIDEO =================
@@ -98,16 +120,27 @@ public class SettingsServiceTests
         var context = GetDbContext();
         var service = GetService(context);
 
+        var fileMock = new Mock<IFormFile>();
+
+        var ms = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("video"));
+
+        fileMock.Setup(f => f.OpenReadStream()).Returns(ms);
+        fileMock.Setup(f => f.FileName).Returns("video.mp4");
+        fileMock.Setup(f => f.Length).Returns(ms.Length);
+        fileMock.Setup(f => f.CopyToAsync(It.IsAny<Stream>(), default))
+                .Returns((Stream stream, CancellationToken token) =>
+                {
+                    ms.CopyTo(stream);
+                    return Task.CompletedTask;
+                });
+
         var dto = new UploadVideoDto
         {
-            File = new Mock<IFormFile>().Object
+            File = fileMock.Object
         };
 
-        _fileMock.Setup(f => f.UploadAsync(dto.File))
-                 .ReturnsAsync("https://drive.google.com/uc?id=123");
-
         _repoMock.Setup(r => r.SaveVideo(It.IsAny<string>(), It.IsAny<int>(), dto))
-                 .ReturnsAsync("https://drive.google.com/uc?id=123");
+         .ReturnsAsync("test-url");
 
         _repoMock.Setup(r => r.GetRoomNumbers(null, null, 1))
                  .ReturnsAsync(new List<string> { "101" });
@@ -118,6 +151,7 @@ public class SettingsServiceTests
         var result = await service.UploadVideo(dto, 1);
 
         Assert.True(result.Success);
+        Assert.Contains("/files/settings/videos/", result.Data);
         _displayMock.Verify(d => d.PushRoomUpdate("101"), Times.Once);
     }
 
@@ -128,7 +162,7 @@ public class SettingsServiceTests
         var context = GetDbContext();
         var service = GetService(context);
 
-        var url = "https://drive.google.com/uc?id=123";
+        var url = "/files/settings/videos/test.mp4";
 
         _repoMock.Setup(r => r.DeleteVideo(url))
                  .Returns(Task.CompletedTask);
@@ -138,9 +172,6 @@ public class SettingsServiceTests
 
         _displayMock.Setup(d => d.PushRoomUpdate(It.IsAny<string>()))
                     .Returns(Task.CompletedTask);
-
-        _fileMock.Setup(f => f.DeleteAsync(It.IsAny<string>()))
-                 .Returns(Task.CompletedTask);
 
         var result = await service.DeleteVideo(url, 1);
 

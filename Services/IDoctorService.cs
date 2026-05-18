@@ -18,5 +18,8 @@ namespace HospitalRoomAPI.Services
             DoctorDto dto);
 
         Task<ApiResponse<Doctor>> DeleteDoctorAsync(int id);
+
+        Task<bool> UpdateDisplayAsync(int id,string displayNumber);
+
     }
 }

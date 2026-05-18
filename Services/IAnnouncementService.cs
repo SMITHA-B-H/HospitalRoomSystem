@@ -1,5 +1,6 @@
 using HospitalRoomAPI.Models;
 using HospitalRoomAPI.Models.Common;
+using HospitalRoomAPI.DTOs;
 
 namespace HospitalRoomAPI.Services
 {
@@ -15,8 +16,13 @@ namespace HospitalRoomAPI.Services
 
         Task<ApiResponse<PatientAnnouncement>> DeactivateAsync(int id);
 
-        Task<ApiResponse<List<Patient>>> GetPatientsByRoom(int roomId);// or DTO if you have one
-        Task<ApiResponse<string>> UploadPoster(IFormFile file);
-        Task<ApiResponse<string>> UploadVideo(IFormFile file);
+        Task<ApiResponse<List<PatientDto>>> GetPatientsByRoom(int roomId);// or DTO if you have one
+
+        Task RemoveExpiredAnnouncements();
+
+        Task DeleteByPatient(int patientId);
+
+        Task<ApiResponse<string>> UploadPoster(IFormFile file, int announcementId);
+        Task<ApiResponse<string>> UploadVideo(IFormFile file, int announcementId);
     }
 }

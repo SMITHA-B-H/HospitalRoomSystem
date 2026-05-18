@@ -19,17 +19,12 @@ namespace HospitalRoomAPI.Controllers
         }
 
         // ================= GET =================
+        [AllowAnonymous]
         [HttpGet]
-        public async Task<IActionResult> GetDoctors()
+        public async Task<IActionResult> GetDoctors(int hospitalId)
         {
-            var hospitalIdClaim = User.FindFirst("HospitalId")?.Value;
-
-            if (string.IsNullOrEmpty(hospitalIdClaim))
-                return Unauthorized("HospitalId missing in token");
-
-            int hospitalId = int.Parse(hospitalIdClaim);
-
-            var result = await _service.GetDoctorsAsync(hospitalId);
+            var result =
+               await _service.GetDoctorsAsync(hospitalId);
 
             return Ok(result);
         }
@@ -83,5 +78,27 @@ namespace HospitalRoomAPI.Controllers
 
             return Ok(result);
         }
+
+        [HttpPut("update-display/{id}")]
+        public async Task<IActionResult>
+            UpdateDisplay(
+                int id,
+                UpdateDisplayDto dto)
+                    {
+                        var updated =
+                            await _service
+                            .UpdateDisplayAsync(
+                                id,
+                                dto.DisplayNumber);
+
+                        if (!updated)
+                            return NotFound(
+                                "Doctor not found");
+
+                        return Ok(
+                            "Display updated successfully");
+                    }
+
+
     }
 }

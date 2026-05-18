@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using HospitalRoomAPI.Hubs;
 using HospitalRoomAPI.Repositories;
+using HospitalRoomAPI.Models;
 
 namespace HospitalRoomAPI.Services
 {
@@ -17,8 +18,8 @@ namespace HospitalRoomAPI.Services
             _hubContext = hubContext;
         }
 
-        // ================= BUILD DISPLAY =================
-        public async Task<object?> BuildRoomDisplay(string roomNumber)
+        // ✅ FINAL WORKING METHOD
+        public async Task<RoomDisplay?> BuildRoomDisplay(string roomNumber)
         {
             var room = await _repository.GetRoomWithDetailsAsync(roomNumber);
             if (room == null) return null;
@@ -28,19 +29,26 @@ namespace HospitalRoomAPI.Services
                 room.Id,
                 room.FloorId);
 
+            // ✅ USE YOUR EXISTING MODELS (PascalCase)
             var beds = room.Beds
                 .Where(b => b.Patient != null)
-                .Select(b => new
+                .Select(b => new BedDisplayDto
                 {
                     bedNumber = b.BedNumber,
-                    occupied = true,
-                    patient = new { name = b.Patient!.Name },
-                    doctor = b.Patient!.Doctor != null ? new
-                    {
-                        name = b.Patient.Doctor.Name,
-                        specialization = b.Patient.Doctor.Department,
-                        photoUrl = b.Patient.Doctor.PhotoUrl
-                    } : null
+                    status = b.Status,
+
+                    patientName = b.Patient.Name,
+
+                    doctorName = b.Patient.Doctor != null
+                        ? b.Patient.Doctor.Name
+                        : "",
+
+                    doctorPhoto = b.Patient.Doctor != null
+                        ? b.Patient.Doctor.PhotoUrl
+                        : "",
+                    doctorDepartment = b.Patient.Doctor != null
+                        ? b.Patient.Doctor.Department
+                        : ""
                 })
                 .ToList();
 
@@ -54,22 +62,23 @@ namespace HospitalRoomAPI.Services
                 room.Id,
                 room.FloorId);
 
-            return new
+            return new RoomDisplay
             {
                 roomNumber = room.RoomNumber,
                 roomName = room.RoomName,
-                logoUrl = settings?.LogoUrl,
-                scrollingMessage = settings?.ScrollingMessage,
+
+                logoUrl = settings?.LogoUrl ?? "",
+                scrollingMessage = settings?.ScrollingMessage ?? "",
                 scrollingSpeed = settings?.ScrollingSpeed ?? 5,
                 adsVolume = settings?.AdsVolume ?? 50,
                 showClock = settings?.ShowClock ?? false,
-                beds,
-                videos,
-                announcements
+
+                beds = beds, // ✅ directly using DB model
+                videos = videos.ToList(),
+                announcements = announcements.ToList()
             };
         }
 
-        // ================= SINGLE ROOM PUSH =================
         public async Task PushRoomUpdate(string roomNumber)
         {
             var data = await BuildRoomDisplay(roomNumber);
@@ -79,7 +88,6 @@ namespace HospitalRoomAPI.Services
                 .SendAsync("RoomUpdated", data);
         }
 
-        // ================= ✅ NEW METHOD (FIX) =================
         public async Task PushRoomUpdateByScope(int? roomId, int? floorId, int hospitalId)
         {
             var roomNumbers = await _repository.GetRoomNumbersByScope(roomId, floorId, hospitalId);

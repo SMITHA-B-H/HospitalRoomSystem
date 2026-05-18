@@ -128,11 +128,46 @@ namespace HospitalRoomAPI.Services
                 jwt["Issuer"],
                 jwt["Audience"],
                 claims,
-                expires: DateTime.Now.AddMinutes(60),
+                expires: DateTime.Now.AddYears(100),
                 signingCredentials: creds
             );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
+
+        public async Task<ApiResponse<object>> RegisterFloorAdminAsync(
+            RegisterFloorAdminDto dto,
+            int hospitalId)
+                {
+                    var existing = await _repo.GetUserByEmailAsync(dto.Email);
+
+                    if (existing != null)
+                    {
+                        return new ApiResponse<object>
+                        {
+                            Success = false,
+                            Message = "Email already exists"
+                        };
+                    }
+
+                    var user = new User
+                    {
+                        Name = dto.Name,
+                        Email = dto.Email,
+                        PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+                        Role = "FloorAdmin",
+                        HospitalId = hospitalId,
+                        FloorId = dto.FloorId
+                    };
+
+                    await _repo.AddUserAsync(user);
+
+                    return new ApiResponse<object>
+                    {
+                        Success = true,
+                        Message = "Floor Admin Created"
+                    };
+                 }
+
     }
 }

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using HospitalRoomAPI.Data;
 using HospitalRoomAPI.Models;
+using HospitalRoomAPI.DTOs;
 
 namespace HospitalRoomAPI.Repositories
 {
@@ -77,30 +78,46 @@ namespace HospitalRoomAPI.Repositories
                 .ToListAsync();
         }
 
-        public async Task<List<object>> GetPatientsByRoom(int roomId)
-        {
-            var patients = await _context.Beds
-                .Include(b => b.Patient)
-                .Where(b => b.RoomId == roomId && b.Patient != null)
-                .Select(b => new
-                {
-                    patientId = b.Patient.Id,
-                    name = b.Patient.Name,
-                    bedNumber = b.BedNumber
-                })
-                .ToListAsync<object>();
-
-            return patients;
-        }
+        
 
         public async Task<Patient?> GetPatientById(int patientId)
         {
             return await _context.Patients.FindAsync(patientId);
         }
 
+        // ================= NEW METHODS =================
+
+        public async Task<List<PatientAnnouncement>> GetExpiredAnnouncements(DateTime now)
+        {
+            return await _context.PatientAnnouncements
+                .Where(x => x.ExpiryTime != null && x.ExpiryTime <= now)
+                .ToListAsync();
+        }
+
+        public async Task<List<PatientAnnouncement>> GetByPatientId(int patientId)
+        {
+            return await _context.PatientAnnouncements
+                .Where(x => x.PatientId == patientId)
+                .ToListAsync();
+        }
+
         public async Task SaveAsync()
         {
             await _context.SaveChangesAsync();
+        }
+
+        public async Task<List<PatientDto>> GetPatientsByRoom(int roomId)
+        {
+            return await _context.Beds
+                .Include(b => b.Patient)
+                .Where(b => b.RoomId == roomId && b.Patient != null)
+                .Select(b => new PatientDto
+                {
+                    PatientId = b.Patient.Id,
+                    Name = b.Patient.Name,
+                    BedNumber = b.BedNumber
+                })
+                .ToListAsync();
         }
     }
 }

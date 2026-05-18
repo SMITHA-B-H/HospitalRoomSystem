@@ -5,6 +5,7 @@ using HospitalRoomAPI.Controllers;
 using HospitalRoomAPI.Services;
 using HospitalRoomAPI.Models;
 using HospitalRoomAPI.Models.Common;
+using HospitalRoomAPI.DTOs; // ? ADD THIS
 
 public class AnnouncementsControllerTests
 {
@@ -16,8 +17,13 @@ public class AnnouncementsControllerTests
     public async Task Create_ReturnsOk()
     {
         var model = new PatientAnnouncement();
+
         _serviceMock.Setup(s => s.CreateAsync(model, 1))
-            .ReturnsAsync(new ApiResponse<PatientAnnouncement> { Success = true, Data = model });
+            .ReturnsAsync(new ApiResponse<PatientAnnouncement>
+            {
+                Success = true,
+                Data = model
+            });
 
         var result = await GetController().Create(model);
 
@@ -29,8 +35,13 @@ public class AnnouncementsControllerTests
     public async Task GetRoom_ReturnsOk()
     {
         var roomId = 1;
+
         _serviceMock.Setup(s => s.GetRoomAsync(roomId))
-            .ReturnsAsync(new ApiResponse<List<PatientAnnouncement>> { Success = true, Data = new List<PatientAnnouncement>() });
+            .ReturnsAsync(new ApiResponse<List<PatientAnnouncement>>
+            {
+                Success = true,
+                Data = new List<PatientAnnouncement>()
+            });
 
         var result = await GetController().GetRoom(roomId);
 
@@ -42,7 +53,11 @@ public class AnnouncementsControllerTests
     public async Task GetAll_ReturnsOk()
     {
         _serviceMock.Setup(s => s.GetAllAsync())
-            .ReturnsAsync(new ApiResponse<List<PatientAnnouncement>> { Success = true, Data = new List<PatientAnnouncement>() });
+            .ReturnsAsync(new ApiResponse<List<PatientAnnouncement>>
+            {
+                Success = true,
+                Data = new List<PatientAnnouncement>()
+            });
 
         var result = await GetController().GetAll();
 
@@ -54,7 +69,10 @@ public class AnnouncementsControllerTests
     public async Task Delete_ReturnsOk()
     {
         _serviceMock.Setup(s => s.DeleteAsync(1))
-            .ReturnsAsync(new ApiResponse<PatientAnnouncement> { Success = true });
+            .ReturnsAsync(new ApiResponse<PatientAnnouncement>
+            {
+                Success = true
+            });
 
         var result = await GetController().Delete(1);
 
@@ -66,7 +84,10 @@ public class AnnouncementsControllerTests
     public async Task Deactivate_ReturnsOk()
     {
         _serviceMock.Setup(s => s.DeactivateAsync(1))
-            .ReturnsAsync(new ApiResponse<PatientAnnouncement> { Success = true });
+            .ReturnsAsync(new ApiResponse<PatientAnnouncement>
+            {
+                Success = true
+            });
 
         var result = await GetController().Deactivate(1);
 
@@ -74,15 +95,20 @@ public class AnnouncementsControllerTests
         Assert.IsType<ApiResponse<PatientAnnouncement>>(ok.Value);
     }
 
+    // ? FIXED TEST
     [Fact]
     public async Task GetPatients_ReturnsOk()
     {
         _serviceMock.Setup(s => s.GetPatientsByRoom(1))
-            .ReturnsAsync(new ApiResponse<List<Patient>> { Success = true, Data = new List<Patient>() });
+            .ReturnsAsync(new ApiResponse<List<PatientDto>>   // ?? FIX HERE
+            {
+                Success = true,
+                Data = new List<PatientDto>()
+            });
 
         var result = await GetController().GetPatients(1);
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        Assert.NotNull(ok.Value);
+        Assert.IsType<ApiResponse<List<PatientDto>>>(ok.Value); // ? also update assertion
     }
 }

@@ -13,6 +13,7 @@ namespace HospitalRoomAPI.Data
         public DbSet<Room> Rooms { get; set; }
         public DbSet<Patient> Patients { get; set; }
         public DbSet<Doctor> Doctors { get; set; }
+        public DbSet<QueueEntry> QueueEntries { get; set; }
         public DbSet<Bed> Beds { get; set; }
         public DbSet<Hospital> Hospitals { get; set; }
         public DbSet<User> Users { get; set; }
@@ -20,6 +21,7 @@ namespace HospitalRoomAPI.Data
         public DbSet<Setting> Settings { get; set; }
         public DbSet<AdsVideo> AdsVideos { get; set; }
         public DbSet<PatientAnnouncement> PatientAnnouncements { get; set; }
+        public DbSet<DisplayDevice> DisplayDevices { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -93,6 +95,17 @@ namespace HospitalRoomAPI.Data
                 .WithMany(h => h.Doctors)
                 .HasForeignKey(d => d.HospitalId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // ================================
+            // DOCTOR → QueueEntry
+            // ================================
+            modelBuilder.Entity<QueueEntry>()
+                .HasOne(x => x.Doctor)
+                .WithMany()
+                .HasForeignKey(x => x.DoctorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+
         }
     }
 }

@@ -16,13 +16,17 @@ namespace HospitalRoomAPI.Tests.Services
         private readonly Mock<IRoomRepository> _repoMock;
         private readonly Mock<IDisplayService> _displayMock;
         private readonly RoomService _service;
+        private readonly Mock<IAnnouncementService> _announcementMock;
 
         public RoomServiceTests()
         {
             _repoMock = new Mock<IRoomRepository>();
             _displayMock = new Mock<IDisplayService>();
+            
+            _announcementMock = new Mock<IAnnouncementService>();
 
-            _service = new RoomService(_repoMock.Object, _displayMock.Object);
+            _service = new RoomService(_repoMock.Object, _displayMock.Object, _announcementMock.Object);
+
         }
 
         // ================= EXISTING TESTS =================
@@ -251,5 +255,122 @@ namespace HospitalRoomAPI.Tests.Services
 
             result.Should().NotBeNull();
         }
+
+        // 🔹 Delete Room Fail - Room Exists In Floor
+        //[Fact]
+        //public async Task DeleteRoom_Should_Fail_When_Room_Has_Beds()
+        //{
+        //    // Arrange
+        //    var room = new Room
+        //    {
+        //        Id = 1,
+        //        RoomNumber = "101",
+        //        Beds = new List<Bed>
+        //{
+        //    new Bed { Id = 1 }
+        //}
+        //    };
+
+        //    _repoMock
+        //        .Setup(r => r.GetRoomByIdWithBedsAsync(1))
+        //        .ReturnsAsync(room);
+
+        //    // Act
+        //    var result = await _service.DeleteRoomAsync(1, "SuperAdmin", 1, null);
+
+        //    // Assert
+        //    result.Success.Should().BeFalse();
+        //    result.Message.Should().Be("Room cannot be deleted because beds exist.");
+
+        //    _repoMock.Verify(r => r.RemoveRoomAsync(It.IsAny<Room>()), Times.Never);
+        //    _repoMock.Verify(r => r.SaveChangesAsync(), Times.Never);
+        //}
+
+        // 🔹 Delete Room Fail - Patient Present
+        [Fact]
+        public async Task DeleteRoom_Should_Fail_When_Patient_Is_Present()
+        {
+            // Arrange
+            var room = new Room
+            {
+                Id = 1,
+                RoomNumber = "101",
+                Beds = new List<Bed>
+        {
+            new Bed
+            {
+                Id = 1,
+                PatientId = 10,
+                Patient = new Patient
+                {
+                    Id = 10,
+                    Name = "John"
+                }
+            }
+        }
+            };
+
+            _repoMock
+                .Setup(r => r.GetRoomByIdWithBedsAsync(1))
+                .ReturnsAsync(room);
+
+            // Act
+            var result = await _service.DeleteRoomAsync(1, "SuperAdmin", 1, null);
+
+            // Assert
+            result.Success.Should().BeFalse();
+
+            result.Message.Should()
+                .Be("Room cannot be deleted because patient is present.");
+
+            _repoMock.Verify(
+                r => r.RemoveRoomAsync(It.IsAny<Room>()),
+                Times.Never);
+
+            _repoMock.Verify(
+                r => r.SaveChangesAsync(),
+                Times.Never);
+        }
+
+
+       
+
+        [Fact]
+        public async Task CreateRoom_Should_Fail_When_Duplicate_Room_Exists()
+        {
+            // Arrange
+            var room = new Room
+            {
+                RoomNumber = "101"
+            };
+
+            _repoMock
+                .Setup(r => r.GetRoomsAsync("SuperAdmin", 1, null))
+                .ReturnsAsync(new List<Room>
+                {
+            new Room
+            {
+                RoomNumber = "101"
+            }
+                });
+
+            // Act
+            var result = await _service.CreateRoomAsync(
+                room,
+                "SuperAdmin",
+                1,
+                null);
+
+            // Assert
+            result.Success.Should().BeFalse();
+
+            result.Message.Should()
+                .Be("Room already exists.");
+
+            _repoMock.Verify(
+                r => r.AddRoomAsync(It.IsAny<Room>()),
+                Times.Never);
+        }
+
     }
 }

@@ -9,5 +9,6 @@ namespace HospitalRoomAPI.Services
         Task<ApiResponse<object>> LoginAsync(LoginDto dto);
         Task<ApiResponse<object>> ForgotPasswordAsync(string email);
         Task<ApiResponse<object>> ResetPasswordAsync(string token, string newPassword);
+        Task<ApiResponse<object>> RegisterFloorAdminAsync(RegisterFloorAdminDto dto,int hospitalId);
     }
 }

@@ -17,3 +17,8 @@ Release/
 # OS files
 .DS_Store
 Thumbs.db
+
+# ?? Sensitive files (DO NOT COMMIT)
+credentials.json
+client_secret.json
+token.json/
