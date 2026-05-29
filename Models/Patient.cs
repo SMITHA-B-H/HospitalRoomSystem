@@ -16,6 +16,8 @@ namespace HospitalRoomAPI.Models
 
             // OPTIONAL reverse reference
             //public Bed? Bed { get; set; }
-        }
+
+             public string? PatientType { get; set; }
+    }
     
 }

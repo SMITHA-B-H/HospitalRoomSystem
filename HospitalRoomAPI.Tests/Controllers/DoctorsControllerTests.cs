@@ -261,8 +261,6 @@ public class DoctorsControllerTests
             await GetController()
                 .DeleteDoctor(1);
 
-        Assert.IsType<
-            NotFoundObjectResult>(
-                result);
+        Assert.IsType<OkObjectResult>(result);
     }
 }

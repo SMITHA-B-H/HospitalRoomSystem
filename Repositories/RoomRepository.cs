@@ -117,6 +117,13 @@ namespace HospitalRoomAPI.Repositories
         public async Task SaveChangesAsync()
         {
             await _context.SaveChangesAsync();
+     
+        }
+
+        public async Task<Patient?> GetPatientByIdAsync(int patientId)
+        {
+            return await _context.Patients
+                .FirstOrDefaultAsync(p => p.Id == patientId);
         }
     }
 }

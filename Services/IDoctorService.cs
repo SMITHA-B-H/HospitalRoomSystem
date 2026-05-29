@@ -21,5 +21,7 @@ namespace HospitalRoomAPI.Services
 
         Task<bool> UpdateDisplayAsync(int id,string displayNumber);
 
+
+
     }
 }

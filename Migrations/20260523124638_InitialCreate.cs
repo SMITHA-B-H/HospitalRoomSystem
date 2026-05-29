@@ -12,6 +12,24 @@ namespace HospitalRoomAPI.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
+                name: "DisplayDevices",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    DeviceId = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    DeviceName = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    RoomNumber = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ConnectionId = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    IsOnline = table.Column<bool>(type: "bit", nullable: false),
+                    LastSeen = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_DisplayDevices", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Hospitals",
                 columns: table => new
                 {
@@ -32,10 +50,13 @@ namespace HospitalRoomAPI.Migrations
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
+                    EmployeeId = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     Department = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Role = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     PhotoUrl = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    HospitalId = table.Column<int>(type: "int", nullable: false)
+                    HospitalId = table.Column<int>(type: "int", nullable: false),
+                    DisplayNumber = table.Column<string>(type: "nvarchar(max)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -76,13 +97,42 @@ namespace HospitalRoomAPI.Migrations
                         .Annotation("SqlServer:Identity", "1, 1"),
                     Name = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     Age = table.Column<int>(type: "int", nullable: false),
-                    DoctorId = table.Column<int>(type: "int", nullable: false)
+                    DoctorId = table.Column<int>(type: "int", nullable: false),
+                    PatientType = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Patients", x => x.Id);
                     table.ForeignKey(
                         name: "FK_Patients_Doctors_DoctorId",
+                        column: x => x.DoctorId,
+                        principalTable: "Doctors",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "QueueEntries",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TokenNumber = table.Column<int>(type: "int", nullable: false),
+                    PatientName = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Department = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    DoctorId = table.Column<int>(type: "int", nullable: false),
+                    Stage = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Status = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DisplayNumber = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    PhoneNumber = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_QueueEntries", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_QueueEntries_Doctors_DoctorId",
                         column: x => x.DoctorId,
                         principalTable: "Doctors",
                         principalColumn: "Id",
@@ -156,8 +206,8 @@ namespace HospitalRoomAPI.Migrations
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     PatientId = table.Column<int>(type: "int", nullable: true),
-                    PatientName = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    Message = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    PatientName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Message = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     RoomId = table.Column<int>(type: "int", nullable: true),
                     FloorId = table.Column<int>(type: "int", nullable: true),
                     HospitalId = table.Column<int>(type: "int", nullable: true),
@@ -334,6 +384,11 @@ namespace HospitalRoomAPI.Migrations
                 column: "DoctorId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_QueueEntries_DoctorId",
+                table: "QueueEntries",
+                column: "DoctorId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Rooms_FloorId",
                 table: "Rooms",
                 column: "FloorId");
@@ -381,7 +436,13 @@ namespace HospitalRoomAPI.Migrations
                 name: "Beds");
 
             migrationBuilder.DropTable(
+                name: "DisplayDevices");
+
+            migrationBuilder.DropTable(
                 name: "PatientAnnouncements");
+
+            migrationBuilder.DropTable(
+                name: "QueueEntries");
 
             migrationBuilder.DropTable(
                 name: "Users");

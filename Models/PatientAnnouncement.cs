@@ -9,12 +9,11 @@ namespace HospitalRoomAPI.Models
 
         public int? PatientId { get; set; }
 
-        [ForeignKey("PatientId")]
         public Patient? Patient { get; set; }
 
-        public string PatientName { get; set; }
+        public string? PatientName { get; set; }
 
-        public string Message { get; set; }
+        public string? Message { get; set; }
 
         public int? RoomId { get; set; }
 
@@ -26,13 +25,14 @@ namespace HospitalRoomAPI.Models
 
         public string? VideoUrl { get; set; }
 
-        public DateTime CreatedAt { get; set; }
-
         public bool IsActive { get; set; }
 
         // Auto expiry
         public int ExpiryHours { get; set; }
 
         public DateTime? ExpiryTime { get; set; }
+
+        // Add this
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 }

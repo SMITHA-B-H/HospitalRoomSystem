@@ -176,11 +176,15 @@ public class RoomsControllerTests
 
         var result = await controller.DeleteRoom(1);
 
-        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        var okResult = Assert.IsType<OkObjectResult>(result);
 
-        var message = Assert.IsType<string>(badRequest.Value);
+        var response = Assert.IsType<ApiResponse<object>>(okResult.Value);
 
-        Assert.Equal("Room cannot be deleted because beds exist.", message);
+        Assert.False(response.Success);
+
+        Assert.Equal(
+            "Room cannot be deleted because beds exist.",
+            response.Message);
     }
 
     [Fact]
@@ -197,14 +201,15 @@ public class RoomsControllerTests
 
         var result = await controller.DeleteRoom(1);
 
-        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        var okResult = Assert.IsType<OkObjectResult>(result);
 
-        var message = Assert.IsType<string>(badRequest.Value);
+        var response = Assert.IsType<ApiResponse<object>>(okResult.Value);
+
+        Assert.False(response.Success);
 
         Assert.Equal(
             "Room cannot be deleted because patient is present.",
-            message);
-    }
-
+            response.Message);
+    } 
 
 }

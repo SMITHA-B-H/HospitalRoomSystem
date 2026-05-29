@@ -143,6 +143,26 @@ namespace HospitalRoomAPI.Services
         // ================= FILE UPLOAD =================
         public async Task<ApiResponse<string>> UploadPoster(IFormFile file, int announcementId)
         {
+            if (file == null || file.Length == 0)
+            {
+                return new ApiResponse<string>
+                {
+                    Success = false,
+                    Message = "Invalid file"
+                };
+            }
+
+            var announcement = await _repo.GetByIdAsync(announcementId);
+
+            if (announcement == null)
+            {
+                return new ApiResponse<string>
+                {
+                    Success = false,
+                    Message = "Announcement not found"
+                };
+            }
+
             var folder = Path.Combine(GetRootPath(), "announcements", "posters");
 
             if (!Directory.Exists(folder))
@@ -156,20 +176,41 @@ namespace HospitalRoomAPI.Services
 
             var url = $"/files/announcements/posters/{fileName}";
 
-            var announcement = await _repo.GetByIdAsync(announcementId);
-            if (announcement == null)
-                return new ApiResponse<string> { Success = false };
-
             announcement.PosterUrl = url;
+
             await _repo.SaveAsync();
 
             await PushUpdate(announcement);
 
-            return new ApiResponse<string> { Success = true, Data = url };
+            return new ApiResponse<string>
+            {
+                Success = true,
+                Data = url
+            };
         }
 
         public async Task<ApiResponse<string>> UploadVideo(IFormFile file, int announcementId)
         {
+            if (file == null || file.Length == 0)
+            {
+                return new ApiResponse<string>
+                {
+                    Success = false,
+                    Message = "Invalid file"
+                };
+            }
+
+            var announcement = await _repo.GetByIdAsync(announcementId);
+
+            if (announcement == null)
+            {
+                return new ApiResponse<string>
+                {
+                    Success = false,
+                    Message = "Announcement not found"
+                };
+            }
+
             var folder = Path.Combine(GetRootPath(), "announcements", "videos");
 
             if (!Directory.Exists(folder))
@@ -183,16 +224,17 @@ namespace HospitalRoomAPI.Services
 
             var url = $"/files/announcements/videos/{fileName}";
 
-            var announcement = await _repo.GetByIdAsync(announcementId);
-            if (announcement == null)
-                return new ApiResponse<string> { Success = false };
-
             announcement.VideoUrl = url;
+
             await _repo.SaveAsync();
 
             await PushUpdate(announcement);
 
-            return new ApiResponse<string> { Success = true, Data = url };
+            return new ApiResponse<string>
+            {
+                Success = true,
+                Data = url
+            };
         }
 
         // ================= FIXED INTERFACE METHODS =================

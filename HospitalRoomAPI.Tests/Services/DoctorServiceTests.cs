@@ -10,28 +10,67 @@ using Microsoft.AspNetCore.Http;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.IO;
+using Microsoft.AspNetCore.SignalR;
+using HospitalRoomAPI.Hubs;
+using HospitalRoomAPI.Data;
+using Microsoft.EntityFrameworkCore;
 
 public class DoctorServiceTests
 {
     private readonly Mock<IDoctorRepository> _repoMock;
     private readonly Mock<IDisplayService> _displayMock;
+    private readonly Mock<IHubContext<RoomHub>> _hubContextMock;
     private readonly DoctorService _service;
 
     public DoctorServiceTests()
     {
-        _repoMock = new Mock<IDoctorRepository>();
-        _displayMock = new Mock<IDisplayService>();
+        _repoMock =
+            new Mock<IDoctorRepository>();
 
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                { "StoragePath", Path.GetTempPath() }
-            })
+        _displayMock =
+            new Mock<IDisplayService>();
+
+        _hubContextMock =
+            new Mock<IHubContext<RoomHub>>();
+
+        var config =
+            new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                {
+                    "StoragePath",
+                    Path.GetTempPath()
+                }
+                })
             .Build();
 
-        _service = new DoctorService(_repoMock.Object, _displayMock.Object, config);
-    }
+        // =====================================
+        // IN MEMORY DB CONTEXT
+        // =====================================
 
+        var options =
+            new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(
+                Guid.NewGuid().ToString()
+            )
+            .Options;
+
+        var context =
+            new AppDbContext(options);
+
+        // =====================================
+        // SERVICE
+        // =====================================
+
+        _service = new DoctorService(
+            _repoMock.Object,
+            _displayMock.Object,
+            config,
+            _hubContextMock.Object,
+            context
+        );
+    }
     [Fact]
     public async Task GetDoctors_Should_Return_List()
     {

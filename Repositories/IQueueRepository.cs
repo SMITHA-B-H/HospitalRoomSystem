@@ -26,6 +26,9 @@ namespace HospitalRoomAPI.Repositories
 
         Task<ApiResponse<object>> ResetDoctorQueueAsync(int doctorId);
 
+        Task<int> GetLastActiveTokenByDoctorAsync(int doctorId,DateTime today);
+
+        
 
     }
 }

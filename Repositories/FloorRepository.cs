@@ -25,6 +25,7 @@ namespace HospitalRoomAPI.Repositories
         {
             return await _context.Floors
                 .Include(f => f.Users)
+                .Include(f => f.Rooms)
                 .FirstOrDefaultAsync(f => f.Id == id);
         }
 

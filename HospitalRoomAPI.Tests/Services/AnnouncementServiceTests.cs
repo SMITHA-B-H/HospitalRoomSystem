@@ -103,12 +103,30 @@ public class AnnouncementServiceTests
         fileMock.Setup(f => f.OpenReadStream()).Returns(ms);
         fileMock.Setup(f => f.FileName).Returns(fileName);
         fileMock.Setup(f => f.Length).Returns(ms.Length);
+
         fileMock.Setup(f => f.CopyToAsync(It.IsAny<Stream>(), default))
                 .Returns((Stream stream, CancellationToken token) =>
                 {
+                    ms.Position = 0;
                     ms.CopyTo(stream);
                     return Task.CompletedTask;
                 });
+
+        _repoMock.Setup(r => r.GetByIdAsync(1))
+                 .ReturnsAsync(new PatientAnnouncement
+                 {
+                     Id = 1,
+                     RoomId = 1
+                 });
+
+        _repoMock.Setup(r => r.SaveAsync())
+                 .Returns(Task.CompletedTask);
+
+        _repoMock.Setup(r => r.GetRoomNumbersByRoomId(It.IsAny<int>()))
+                 .ReturnsAsync(new List<string> { "101" });
+
+        _displayMock.Setup(d => d.PushRoomUpdate(It.IsAny<string>()))
+                    .Returns(Task.CompletedTask);
 
         var result = await service.UploadPoster(fileMock.Object, 1);
 
@@ -126,21 +144,56 @@ public class AnnouncementServiceTests
 
         var content = "dummy video";
         var fileName = "test.mp4";
-        var ms = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(content));
 
-        fileMock.Setup(f => f.OpenReadStream()).Returns(ms);
-        fileMock.Setup(f => f.FileName).Returns(fileName);
-        fileMock.Setup(f => f.Length).Returns(ms.Length);
+        var ms = new MemoryStream(
+            System.Text.Encoding.UTF8.GetBytes(content));
+
+        fileMock.Setup(f => f.OpenReadStream())
+                .Returns(ms);
+
+        fileMock.Setup(f => f.FileName)
+                .Returns(fileName);
+
+        fileMock.Setup(f => f.Length)
+                .Returns(ms.Length);
+
         fileMock.Setup(f => f.CopyToAsync(It.IsAny<Stream>(), default))
                 .Returns((Stream stream, CancellationToken token) =>
                 {
+                    ms.Position = 0;
                     ms.CopyTo(stream);
                     return Task.CompletedTask;
                 });
 
+        // ================= MOCK ANNOUNCEMENT =================
+
+        _repoMock.Setup(r => r.GetByIdAsync(1))
+                 .ReturnsAsync(new PatientAnnouncement
+                 {
+                     Id = 1,
+                     RoomId = 1
+                 });
+
+        _repoMock.Setup(r => r.SaveAsync())
+                 .Returns(Task.CompletedTask);
+
+        _repoMock.Setup(r => r.GetRoomNumbersByRoomId(It.IsAny<int>()))
+                 .ReturnsAsync(new List<string> { "101" });
+
+        _displayMock.Setup(d => d.PushRoomUpdate(It.IsAny<string>()))
+                    .Returns(Task.CompletedTask);
+
+        // ================= CALL =================
+
         var result = await service.UploadVideo(fileMock.Object, 1);
 
+        // ================= ASSERT =================
+
         Assert.True(result.Success);
-        Assert.Contains("/files/announcements/videos/", result.Data);
+
+        Assert.Contains(
+            "/files/announcements/videos/",
+            result.Data
+        );
     }
 }

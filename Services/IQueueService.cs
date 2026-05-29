@@ -27,5 +27,6 @@ namespace HospitalRoomAPI.Services
 
         Task<ApiResponse<object>> ResetDoctorQueueAsync(int doctorId);
 
+        Task<QueueEntry?> EmergencyCallAsync(int id);
     }
 }

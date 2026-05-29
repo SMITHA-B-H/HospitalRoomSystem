@@ -5,7 +5,8 @@ using HospitalRoomAPI.Hubs;
 using Microsoft.AspNetCore.SignalR; 
 using Microsoft.EntityFrameworkCore;
 using HospitalRoomAPI.Models.Common;
-
+using System.Text;
+using System.Text.Json;
 
 namespace HospitalRoomAPI.Services
 {
@@ -13,13 +14,17 @@ namespace HospitalRoomAPI.Services
     {
         private readonly IQueueRepository _repo;
         private readonly IHubContext<RoomHub> _hub;
+        private readonly IDoctorRepository _doctorRepository;
 
         public QueueService(
             IQueueRepository repo,
-            IHubContext<RoomHub> hub)
+            IHubContext<RoomHub> hub,
+            IDoctorRepository doctorRepository) 
+
         {
             _repo = repo;
             _hub = hub;
+            _doctorRepository = doctorRepository;
         }
 
         // =====================================
@@ -68,9 +73,18 @@ namespace HospitalRoomAPI.Services
 
             var lastToken =
                 await _repo
-                .GetLastTokenByDoctorAsync(
+                .GetLastActiveTokenByDoctorAsync(
                     dto.DoctorId,
                     today
+                );
+
+            var doctor = await _doctorRepository
+             .GetByIdAsync(dto.DoctorId);
+
+            var hospitalName =
+                await _doctorRepository
+                .GetHospitalNameAsync(
+                    doctor.HospitalId
                 );
 
             string stage = "OPD";
@@ -96,6 +110,8 @@ namespace HospitalRoomAPI.Services
 
                     PatientName =
                         dto.PatientName,
+                    PhoneNumber =
+                        dto.PhoneNumber,
 
                     Department =
                         dto.Department,
@@ -118,6 +134,44 @@ namespace HospitalRoomAPI.Services
 
             await _repo
                 .SaveAsync();
+
+            using var client = new HttpClient();
+
+            var payload = new
+            {
+                phone = dto.PhoneNumber,
+
+                message =
+                    $"Confirmed! Hi {dto.PatientName}, your appointment with {doctor.Name} at {hospitalName} on {DateTime.Now:dd-MM-yyyy} is confirmed. Please wait for your turn. Thank you."
+
+            };
+
+            var json =
+                System.Text.Json.JsonSerializer.Serialize(
+                    payload
+                );
+
+            var content =
+                new StringContent(
+                    json,
+                    Encoding.UTF8,
+                    "application/json"
+                );
+
+            try
+            {
+                await client.PostAsync(
+                    "http://localhost:3000/send",
+                    content
+                );
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(
+                    "WhatsApp API Error: " + ex.Message
+                );
+            }
+
 
             await Broadcast();
 
@@ -332,60 +386,79 @@ namespace HospitalRoomAPI.Services
         // =====================================
         // DISPLAY QUEUE
         // =====================================
-        public async Task<DisplayQueueDto?>
-        GetDisplayQueueAsync(
-            string displayNumber)
-                {
-                    var data =
-                        await _repo
-                        .GetDisplayQueueAsync(
-                            displayNumber);
+        public async Task<DisplayQueueDto?>GetDisplayQueueAsync(string displayNumber)
+        {
+            // =====================================
+            // GET QUEUE
+            // =====================================
 
-                    if (!data.Any())
-                        return null;
+            var data =
+                await _repo
+                .GetDisplayQueueAsync(
+                    displayNumber);
 
-                    var doctor = data.First().Doctor;
+            // =====================================
+            // GET DOCTOR EVEN IF QUEUE EMPTY
+            // =====================================
 
-                    return new DisplayQueueDto
+            Doctor? doctor = null;
+
+            if (data.Any())
+            {
+                doctor = data.First().Doctor;
+            }
+            else
+            {
+                doctor = await _doctorRepository
+                    .GetByDisplayNumberAsync(
+                        displayNumber);
+            }
+
+            // =====================================
+            // STILL RETURN OBJECT
+            // =====================================
+
+            return new DisplayQueueDto
+            {
+                DisplayNumber = displayNumber,
+
+                Doctor = doctor == null
+                    ? null
+                    : new DoctorDisplayDto
                     {
-                        DisplayNumber = displayNumber,
+                        Id = doctor.Id,
 
-                        Doctor = doctor == null
-                            ? null
-                            : new DoctorDisplayDto
-                            {
-                                Id = doctor.Id,
+                        Name = doctor.Name,
 
-                                Name = doctor.Name,
+                        Department = doctor.Department,
 
-                                Department = doctor.Department,
+                        Role = doctor.Role,
 
-                                Role = doctor.Role,
+                        PhotoUrl = doctor.PhotoUrl,
 
-                                PhotoUrl = doctor.PhotoUrl,
+                        DisplayNumber =
+                            doctor.DisplayNumber
+                    },
 
-                                DisplayNumber = doctor.DisplayNumber
-                            },
+                Queue = data.Select(x =>
+                    new QueueItemDto
+                    {
+                        Id = x.Id,
 
-                        Queue = data.Select(x =>
-                            new QueueItemDto
-                            {
-                                Id = x.Id,
+                        TokenNumber =
+                            x.TokenNumber,
 
-                                TokenNumber =
-                                    x.TokenNumber,
+                        PatientName =
+                            x.PatientName,
 
-                                PatientName =
-                                    x.PatientName,
+                        Status =
+                            x.Status,
 
-                                Status =
-                                    x.Status,
-
-                                Stage =
-                                    x.Stage
-                            }).ToList()
-                    };
-                }
+                        Stage =
+                            x.Stage
+                    }).ToList()
+            };
+        }
 
 
         // =====================================
@@ -398,12 +471,123 @@ namespace HospitalRoomAPI.Services
                     .GetCentralDisplayAsync();
             }
 
-       
+
 
         ///========================================
-        public async Task<ApiResponse<object>> ResetDoctorQueueAsync(int doctorId)
+        public async Task<ApiResponse<object>>ResetDoctorQueueAsync(int doctorId)
         {
-            return await _repo.ResetDoctorQueueAsync(doctorId);
+            // =====================================
+            // RESET DATABASE
+            // =====================================
+
+            var result = await _repo
+                .ResetDoctorQueueAsync(
+                    doctorId
+                );
+
+            // =====================================
+            // GET DOCTOR
+            // =====================================
+
+            var doctor = await _doctorRepository
+                .GetByIdAsync(doctorId);
+
+            // =====================================
+            // UPDATE OPD DISPLAY
+            // =====================================
+
+            if (doctor != null &&
+                !string.IsNullOrEmpty(
+                    doctor.DisplayNumber))
+            {
+                await _hub
+                    .Clients
+                    .Group(
+                        doctor.DisplayNumber
+                    )
+                    .SendAsync(
+                        "QueueUpdated",
+                        new object[] { }
+                    );
+
+                Console.WriteLine(
+                    $"?? OPD QueueUpdated SENT -> {doctor.DisplayNumber}"
+                );
+            }
+
+            // =====================================
+            // UPDATE CENTRAL DISPLAY
+            // =====================================
+
+            await _hub
+                .Clients
+                .Group("central")
+                .SendAsync(
+                    "QueueUpdated",
+                    new object[] { }
+                );
+
+            Console.WriteLine(
+                "?? CENTRAL QueueUpdated SENT"
+            );
+
+            return new ApiResponse<object>
+            {
+                Success = result.Success,
+                Message = result.Message,
+                Data = null
+            };
+        }
+
+        //======================================
+
+        public async Task<QueueEntry?>
+        EmergencyCallAsync(int id)
+        {
+            var emergencyPatient =
+                await _repo.GetByIdAsync(id);
+
+            if (emergencyPatient == null)
+                return null;
+
+            // =====================================
+            // FIND CURRENT ACTIVE PATIENT
+            // =====================================
+
+            var doctorQueue =
+                await _repo.GetDoctorQueueAsync(
+                    emergencyPatient.DoctorId
+                );
+
+            var current =
+                doctorQueue.FirstOrDefault(
+                    x => x.Status == "InProgress"
+                );
+
+            // =====================================
+            // MOVE CURRENT BACK TO WAITING
+            // =====================================
+
+            if (current != null)
+            {
+                current.Status = "Waiting";
+            }
+
+            // =====================================
+            // MAKE EMERGENCY ACTIVE
+            // =====================================
+
+            emergencyPatient.Status = "InProgress";
+
+            // bring top
+            emergencyPatient.CreatedAt =
+                DateTime.Now.AddMinutes(-20);
+
+            await _repo.SaveAsync();
+
+            await Broadcast();
+
+            return emergencyPatient;
         }
 
     }

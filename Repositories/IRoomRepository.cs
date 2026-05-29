@@ -15,5 +15,6 @@ namespace HospitalRoomAPI.Repositories
         Task RemoveRoomAsync(Room room);
         Task RemovePatientByIdAsync(int patientId);
         Task SaveChangesAsync();
+        Task<Patient?> GetPatientByIdAsync(int patientId);
     }
 }

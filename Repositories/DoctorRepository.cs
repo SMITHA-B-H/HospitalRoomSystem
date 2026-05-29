@@ -68,24 +68,55 @@ namespace HospitalRoomAPI.Repositories
                 .ToListAsync()!;
         }
 
-        public async Task<bool>
-UpdateDisplayAsync(
-    int id,
-    string displayNumber)
+        public async Task<bool> UpdateDisplayAsync(int id,
+            string displayNumber)
+                {
+                    var doctor =
+                        await _context.Doctors
+                        .FindAsync(id);
+
+                    if (doctor == null)
+                        return false;
+
+                    doctor.DisplayNumber =
+                        displayNumber;
+
+                    await _context.SaveChangesAsync();
+
+                    return true;
+                }
+
+
+        public async Task<bool> HasAssignedPatientsAsync(int doctorId)
         {
-            var doctor =
-                await _context.Doctors
-                .FindAsync(id);
+            return await _context.Beds
+                .Include(b => b.Patient)
+                .AnyAsync(b =>
 
-            if (doctor == null)
-                return false;
+                    b.Patient != null &&
 
-            doctor.DisplayNumber =
-                displayNumber;
+                    b.Patient.DoctorId == doctorId &&
 
-            await _context.SaveChangesAsync();
-
-            return true;
+                    b.Status == "Occupied"
+                );
         }
+
+        public async Task<string?> GetHospitalNameAsync(int hospitalId)
+        {
+            return await _context.Hospitals
+                .Where(h => h.Id == hospitalId)
+                .Select(h => h.Name)
+                .FirstOrDefaultAsync();
+        }
+
+        public async Task<Doctor?>GetByDisplayNumberAsync(string displayNumber)
+        {
+            return await _context.Doctors
+                .FirstOrDefaultAsync(
+                    x => x.DisplayNumber ==
+                         displayNumber
+                );
+        }
+
     }
 }

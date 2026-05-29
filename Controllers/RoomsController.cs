@@ -56,7 +56,13 @@ namespace HospitalRoomAPI.Controllers
 
             var response = await _roomService.CreateRoomAsync(room, role!, hospitalId, floorId);
             if (!response.Success)
-                return BadRequest(response.Message);
+                //return Ok(new
+                //{
+                //    success = false,
+                //    Message = "Room already exists."
+                //});
+                //return Ok(result);
+                return Ok(response);
 
             return Ok(response);
         }
@@ -101,7 +107,14 @@ namespace HospitalRoomAPI.Controllers
 
             var response = await _roomService.DeleteRoomAsync(id, role!, hospitalId, floorId);
             if (!response.Success)
-                return BadRequest(response.Message);
+                //return Ok(new
+                //{
+                //    success = false,
+                //    message =
+                //    "Room cannot be deleted because patient is present"
+                //});
+                //return Ok(result);
+                return Ok(response);
 
             return Ok(response);
         }
@@ -116,9 +129,60 @@ namespace HospitalRoomAPI.Controllers
 
             var response = await _roomService.UpdateRoomAsync(id, updatedRoom, role!, hospitalId, floorId);
             if (!response.Success)
-                return BadRequest(response.Message);
+                //return Ok(new
+                //{
+                //    success = false,
+                //    message =
+                //             "Cannot edit room while patients are present"
+                //});
+                //return Ok(result);
+                return Ok(response);
 
             return Ok(response);
         }
+
+        //================= BOOK BED =================
+        [HttpPost("book-bed/{bedId}")]
+        public async Task<IActionResult> BookBed(int bedId)
+        {
+            var result = await _roomService.BookBedAsync(bedId);
+
+            if (!result.Success)
+                return BadRequest(result);
+
+            return Ok(result);
+        }
+
+
+        //================= CANCEL BOOKING =================
+        [HttpPost("cancel-booking/{bedId}")]
+        public async Task<IActionResult> CancelBooking(int bedId)
+        {
+            var result = await _roomService.CancelBookingAsync(bedId);
+
+            if (!result.Success)
+                return BadRequest(result);
+
+            return Ok(result);
+        }
+
+        [HttpPut("update-patient/{patientId}")]
+        public async Task<IActionResult> UpdatePatient(
+            int patientId,
+            [FromBody] UpdatePatientDto dto)
+                {
+                    var result = await _roomService.UpdatePatientAsync(
+                        patientId,
+                        dto
+                    );
+
+                    if (!result.Success)
+                    {
+                        return BadRequest(result);
+                    }
+
+                    return Ok(result);
+                }
+
     }
 }

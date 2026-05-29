@@ -46,10 +46,19 @@ namespace HospitalRoomAPI.Services
             ?? new List<Room>();
 
             var existingRoom = rooms
-                .FirstOrDefault(r =>
-                    r.RoomNumber != null &&
-                    room.RoomNumber != null &&
-                    r.RoomNumber.ToLower() == room.RoomNumber.ToLower());
+            .FirstOrDefault(r =>
+                r.RoomNumber != null &&
+                room.RoomNumber != null &&
+                r.RoomNumber.ToLower() == room.RoomNumber.ToLower());
+
+                    if (existingRoom != null)
+                    {
+                        return new ApiResponse<Room>
+                        {
+                            Success = false,
+                            Message = "Room already exists."
+                        };
+                    }
 
             // FIX 1: Floor override (your test expects this)
             if (role == "FloorAdmin" && floorId.HasValue)
@@ -87,19 +96,34 @@ namespace HospitalRoomAPI.Services
             };
         }
 
+        
         // ================= ASSIGN PATIENT =================
         public async Task<ApiResponse<Patient>> AssignPatientAsync(AssignPatientDto dto)
         {
             var bed = await _repository.GetBedByIdAsync(dto.BedId);
 
             if (bed == null)
-                return new ApiResponse<Patient> { Success = false, Message = "Bed not found" };
+                return new ApiResponse<Patient>
+                {
+                    Success = false,
+                    Message = "Bed not found"
+                };
+
+            if (bed.Status == "Occupied")
+            {
+                return new ApiResponse<Patient>
+                {
+                    Success = false,
+                    Message = "Bed already occupied"
+                };
+            }
 
             var patient = new Patient
             {
                 Name = dto.Name,
                 Age = dto.Age,
-                DoctorId = dto.DoctorId
+                DoctorId = dto.DoctorId,
+                PatientType = dto.PatientType
             };
 
             await _repository.AddPatientAsync(patient);
@@ -115,6 +139,89 @@ namespace HospitalRoomAPI.Services
             {
                 Success = true,
                 Data = patient
+            };
+        }
+
+        // ================= BOOK BED =================
+
+        public async Task<ApiResponse<object>> BookBedAsync(int bedId)
+        {
+            var bed = await _repository.GetBedByIdAsync(bedId);
+
+            if (bed == null)
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Bed not found"
+                };
+            }
+
+            if (bed.Status == "Occupied")
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Bed already occupied"
+                };
+            }
+
+            if (bed.Status == "Booked")
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Bed already booked"
+                };
+            }
+
+            bed.Status = "Booked";
+
+            await _repository.SaveChangesAsync();
+
+            await _displayService.PushRoomUpdate(bed.Room!.RoomNumber);
+
+            return new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Bed booked successfully"
+            };
+        }
+
+        // ================= CANCEL BOOKING =================
+
+        public async Task<ApiResponse<object>> CancelBookingAsync(int bedId)
+        {
+            var bed = await _repository.GetBedByIdAsync(bedId);
+
+            if (bed == null)
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Bed not found"
+                };
+            }
+
+            if (bed.Status != "Booked")
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Bed is not booked"
+                };
+            }
+
+            bed.Status = "Available";
+
+            await _repository.SaveChangesAsync();
+
+            await _displayService.PushRoomUpdate(bed.Room!.RoomNumber);
+
+            return new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Booking cancelled"
             };
         }
 
@@ -207,12 +314,126 @@ namespace HospitalRoomAPI.Services
             var room = await _repository.GetRoomByIdWithBedsAsync(id);
 
             if (room == null)
-                return new ApiResponse<Room> { Success = false, Message = "Not found" };
+            {
+                return new ApiResponse<Room>
+                {
+                    Success = false,
+                    Message = "Room not found"
+                };
+            }
+
+            // ======================================
+            // PREVENT NULL COLLECTION ERRORS
+            // ======================================
+
+            updatedRoom.Beds ??= new List<Bed>();
+            room.Beds ??= new List<Bed>();
+
+            // ======================================
+            // DUPLICATE ROOM NUMBER CHECK
+            // ======================================
+
+            var rooms = await _repository.GetRoomsAsync(
+                role,
+                hospitalId,
+                floorId
+            ) ?? new List<Room>();
+
+            var duplicateRoom = rooms.FirstOrDefault(r =>
+                r.Id != id &&
+                r.RoomNumber != null &&
+                updatedRoom.RoomNumber != null &&
+                r.RoomNumber.ToLower() ==
+                updatedRoom.RoomNumber.ToLower()
+            );
+
+            if (duplicateRoom != null)
+            {
+                return new ApiResponse<Room>
+                {
+                    Success = false,
+                    Message = "Room already exists."
+                };
+            }
+
+            // ==============================
+            // BLOCK EDIT IF PATIENT EXISTS
+            // ==============================
+
+            bool hasPatients = room.Beds.Any(
+                b => b.Status == "Occupied"
+            );
+
+            if (hasPatients)
+            {
+                return new ApiResponse<Room>
+                {
+                    Success = false,
+                    Message = "Cannot edit room while patients are admitted."
+                };
+            }
+
+            // ==============================
+            // UPDATE ROOM
+            // ==============================
 
             room.RoomNumber = updatedRoom.RoomNumber;
             room.RoomName = updatedRoom.RoomName;
             room.RoomType = updatedRoom.RoomType;
             room.TotalBeds = updatedRoom.TotalBeds;
+
+            // ==============================
+            // BED MANAGEMENT
+            // ==============================
+
+            var currentBedsCount = room.Beds.Count;
+
+            // ==============================
+            // UPDATE EXISTING BED STATUS
+            // ==============================
+
+            foreach (var existingBed in room.Beds)
+            {
+                var updatedBed = updatedRoom.Beds
+                    .FirstOrDefault(b => b.Id == existingBed.Id);
+
+                if (updatedBed != null)
+                {
+                    existingBed.Status = updatedBed.Status;
+                }
+            }
+
+            // ==============================
+            // ADD BEDS
+            // ==============================
+
+            if (updatedRoom.TotalBeds > currentBedsCount)
+            {
+                for (int i = currentBedsCount + 1; i <= updatedRoom.TotalBeds; i++)
+                {
+                    room.Beds.Add(new Bed
+                    {
+                        BedNumber = i,
+                        Status = "Available"
+                    });
+                }
+            }
+
+            // ==============================
+            // REMOVE BEDS
+            // ==============================
+
+            if (updatedRoom.TotalBeds < currentBedsCount)
+            {
+                var bedsToRemove = room.Beds
+                    .Where(b => b.BedNumber > updatedRoom.TotalBeds)
+                    .ToList();
+
+                foreach (var bed in bedsToRemove)
+                {
+                    room.Beds.Remove(bed);
+                }
+            }
 
             await _repository.SaveChangesAsync();
 
@@ -221,8 +442,42 @@ namespace HospitalRoomAPI.Services
             return new ApiResponse<Room>
             {
                 Success = true,
-                Data = room
+                Data = room,
+                Message = "Room updated successfully"
             };
-        } 
+        }
+
+        public async Task<ApiResponse<object>> UpdatePatientAsync(int patientId,UpdatePatientDto dto)
+        {
+            var patient = await _repository.GetPatientByIdAsync(patientId);
+
+            if (patient == null)
+            {
+                return new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Patient not found"
+                };
+            }
+
+            patient.Name = dto.Name;
+            patient.Age = dto.Age;
+
+            if (dto.DoctorId.HasValue)
+            {
+                patient.DoctorId = dto.DoctorId.Value;
+            }
+
+            patient.PatientType = dto.PatientType;
+
+            await _repository.SaveChangesAsync();
+
+            return new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Patient updated successfully"
+            };
+        }
+
     }
 }

@@ -10,5 +10,7 @@ namespace HospitalRoomAPI.DTOs
         //public string Stage { get; set; } = "Initial";  
         //public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public string DisplayNumber { get; set; } = string.Empty;
+
+        public string PhoneNumber { get; set; } = "";
     }
 }

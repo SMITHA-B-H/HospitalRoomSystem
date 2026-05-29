@@ -35,5 +35,13 @@ namespace HospitalRoomAPI.Services
             int hospitalId,
             int? floorId
         );
+
+        Task<ApiResponse<object>> BookBedAsync(int bedId);
+
+        Task<ApiResponse<object>> CancelBookingAsync(int bedId);
+
+        Task<ApiResponse<object>> UpdatePatientAsync(int patientId,UpdatePatientDto dto);
+
+
     }
 }

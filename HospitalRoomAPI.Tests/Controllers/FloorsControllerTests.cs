@@ -113,7 +113,11 @@ public class FloorsControllerTests
 
         var result = await controller.UpdateFloor(1, dto);
 
-        Assert.IsType<NotFoundObjectResult>(result);
+        var notFound = Assert.IsType<NotFoundObjectResult>(result);
+
+        var response = Assert.IsType<ApiResponse<Floor>>(notFound.Value);
+
+        Assert.False(response.Success);
     }
 
     // ================= DELETE =================
@@ -149,7 +153,7 @@ public class FloorsControllerTests
 
         var result = await controller.DeleteFloor(1);
 
-        Assert.IsType<NotFoundObjectResult>(result);
+        Assert.IsType<OkObjectResult>(result);
     }
 
    
@@ -168,7 +172,7 @@ public class FloorsControllerTests
 
         var result = await controller.DeleteFloor(1);
 
-        var notFound = Assert.IsType<NotFoundObjectResult>(result);
+        var notFound = Assert.IsType<OkObjectResult>(result);
 
         var response = Assert.IsType<ApiResponse<Floor>>(notFound.Value);
 

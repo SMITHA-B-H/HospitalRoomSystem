@@ -64,6 +64,7 @@ builder.Services.AddScoped<IFloorRepository, FloorRepository>();
 builder.Services.AddScoped<IQueueRepository, QueueRepository>();
 builder.Services.AddScoped<IDeviceRepository, DeviceRepository>();
 
+
 // =====================================================
 // DEPENDENCY INJECTION - SERVICES
 // =====================================================
@@ -76,6 +77,7 @@ builder.Services.AddScoped<IDoctorService, DoctorService>();
 builder.Services.AddScoped<IFloorService, FloorService>();
 builder.Services.AddScoped<IQueueService, QueueService>();
 builder.Services.AddScoped<IDeviceService, DeviceService>();
+builder.Services.AddScoped<WhatsAppService, WhatsAppService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ILicenseService, LicenseService>();
 
@@ -207,6 +209,17 @@ var app = builder.Build();
         app.UseSwaggerUI();
 
 // =====================================================
+// AUTO APPLY MIGRATIONS
+// =====================================================
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider
+        .GetRequiredService<AppDbContext>();
+
+    db.Database.Migrate();
+}
+
+// =====================================================
 // PIPELINE
 // =====================================================
 
@@ -248,11 +261,6 @@ app.UseMiddleware<LicenseMiddleware>();
 app.MapControllers();
 
 app.MapHub<RoomHub>("/roomHub");
-
-// =====================================================
-// lan port 
-// =====================================================
-app.Urls.Add("http://0.0.0.0:5000");
 
 
 // =====================================================

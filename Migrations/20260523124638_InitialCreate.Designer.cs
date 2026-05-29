@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HospitalRoomAPI.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260507075948_AddDisplayNumberToDoctor")]
-    partial class AddDisplayNumberToDoctor
+    [Migration("20260523124638_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -238,6 +238,9 @@ namespace HospitalRoomAPI.Migrations
                     b.Property<string>("Name")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("PatientType")
+                        .HasColumnType("nvarchar(max)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("DoctorId");
@@ -272,14 +275,12 @@ namespace HospitalRoomAPI.Migrations
                         .HasColumnType("bit");
 
                     b.Property<string>("Message")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("PatientId")
                         .HasColumnType("int");
 
                     b.Property<string>("PatientName")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PosterUrl")
@@ -313,11 +314,21 @@ namespace HospitalRoomAPI.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("DisplayNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("DoctorId")
                         .HasColumnType("int");
 
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
                     b.Property<string>("PatientName")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PhoneNumber")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Stage")
@@ -559,7 +570,7 @@ namespace HospitalRoomAPI.Migrations
 
             modelBuilder.Entity("HospitalRoomAPI.Models.QueueEntry", b =>
                 {
-                    b.HasOne("HospitalRoomAPI.Models.User", "Doctor")
+                    b.HasOne("HospitalRoomAPI.Models.Doctor", "Doctor")
                         .WithMany()
                         .HasForeignKey("DoctorId")
                         .OnDelete(DeleteBehavior.Restrict)

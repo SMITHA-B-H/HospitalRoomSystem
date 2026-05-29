@@ -74,30 +74,37 @@ namespace HospitalRoomAPI.Controllers
             var result = await _service.DeleteDoctorAsync(id);
 
             if (!result.Success)
-                return NotFound(result);
+                return Ok(result);
 
             return Ok(result);
         }
 
         [HttpPut("update-display/{id}")]
-        public async Task<IActionResult>
-            UpdateDisplay(
-                int id,
-                UpdateDisplayDto dto)
-                    {
-                        var updated =
-                            await _service
-                            .UpdateDisplayAsync(
-                                id,
-                                dto.DisplayNumber);
+        public async Task<IActionResult> UpdateDisplay(
+        int id,
+        UpdateDisplayDto dto)
+        {
+            var result =
+                await _service.UpdateDisplayAsync(
+                    id,
+                    dto.DisplayNumber
+                );
 
-                        if (!updated)
-                            return NotFound(
-                                "Doctor not found");
+            if (!result)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Failed to update display"
+                });
+            }
 
-                        return Ok(
-                            "Display updated successfully");
-                    }
+            return Ok(new
+            {
+                success = true,
+                message = "Display updated"
+            });
+        }
 
 
     }

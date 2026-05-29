@@ -50,7 +50,8 @@ namespace HospitalRoomAPI.Controllers
         public async Task<IActionResult> DeleteFloor(int id)
         {
             var result = await _service.DeleteFloorAsync(id);
-            if (!result.Success) return NotFound(result);
+            if (!result.Success) 
+                return Ok(result);
 
             return Ok(result);
         }

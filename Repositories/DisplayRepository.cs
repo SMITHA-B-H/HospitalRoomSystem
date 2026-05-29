@@ -15,15 +15,26 @@ namespace HospitalRoomAPI.Repositories
         }
 
         // ================= ROOM WITH DETAILS =================
-        public async Task<Room?> GetRoomWithDetailsAsync(string roomNumber)
+        public async Task<Room?>
+        GetRoomWithDetailsAsync(
+        string roomNumber)
         {
             return await _context.Rooms
-                .Include(r => r.Beds)
-                    .ThenInclude(b => b.Patient)
-                        .ThenInclude(p => p.Doctor)
+
+                .AsNoTracking()
+
                 .Include(r => r.Floor)
-                    .ThenInclude(f => f.Hospital)
-                .FirstOrDefaultAsync(r => r.RoomNumber == roomNumber);
+
+                .Include(r => r.Beds)
+
+                    .ThenInclude(b => b.Patient)
+
+                        .ThenInclude(p => p.Doctor)
+
+                .FirstOrDefaultAsync(
+
+                    r => r.RoomNumber == roomNumber
+                );
         }
 
         // ================= SETTINGS =================

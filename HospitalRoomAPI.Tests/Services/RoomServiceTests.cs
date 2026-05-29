@@ -193,27 +193,7 @@ namespace HospitalRoomAPI.Tests.Services
             result.Success.Should().BeFalse();
         }
 
-        // 🔹 Delete Room
-        [Fact]
-        public async Task DeleteRoom_Should_Remove_And_Call_Display()
-        {
-            var room = new Room
-            {
-                Id = 1,
-                RoomNumber = "101"
-            };
-
-            _repoMock.Setup(r => r.GetRoomByIdWithBedsAsync(1)).ReturnsAsync(room);
-
-            var result = await _service.DeleteRoomAsync(1, "SuperAdmin", 1, null);
-
-            result.Success.Should().BeTrue();
-
-            _repoMock.Verify(r => r.RemoveRoomAsync(room), Times.Once);
-            _repoMock.Verify(r => r.SaveChangesAsync(), Times.Once);
-            _displayMock.Verify(d => d.PushRoomUpdate("101"), Times.Once);
-        }
-
+        
         // 🔹 Update Room
         [Fact]
         public async Task UpdateRoom_Should_Update_And_Call_Display()
@@ -256,35 +236,27 @@ namespace HospitalRoomAPI.Tests.Services
             result.Should().NotBeNull();
         }
 
-        // 🔹 Delete Room Fail - Room Exists In Floor
-        //[Fact]
-        //public async Task DeleteRoom_Should_Fail_When_Room_Has_Beds()
-        //{
-        //    // Arrange
-        //    var room = new Room
-        //    {
-        //        Id = 1,
-        //        RoomNumber = "101",
-        //        Beds = new List<Bed>
-        //{
-        //    new Bed { Id = 1 }
-        //}
-        //    };
+        // 🔹 Delete Room
+        [Fact]
+        public async Task DeleteRoom_Should_Remove_And_Call_Display()
+        {
+            var room = new Room
+            {
+                Id = 1,
+                RoomNumber = "101"
+            };
 
-        //    _repoMock
-        //        .Setup(r => r.GetRoomByIdWithBedsAsync(1))
-        //        .ReturnsAsync(room);
+            _repoMock.Setup(r => r.GetRoomByIdWithBedsAsync(1)).ReturnsAsync(room);
 
-        //    // Act
-        //    var result = await _service.DeleteRoomAsync(1, "SuperAdmin", 1, null);
+            var result = await _service.DeleteRoomAsync(1, "SuperAdmin", 1, null);
 
-        //    // Assert
-        //    result.Success.Should().BeFalse();
-        //    result.Message.Should().Be("Room cannot be deleted because beds exist.");
+            result.Success.Should().BeTrue();
 
-        //    _repoMock.Verify(r => r.RemoveRoomAsync(It.IsAny<Room>()), Times.Never);
-        //    _repoMock.Verify(r => r.SaveChangesAsync(), Times.Never);
-        //}
+            _repoMock.Verify(r => r.RemoveRoomAsync(room), Times.Once);
+            _repoMock.Verify(r => r.SaveChangesAsync(), Times.Once);
+            _displayMock.Verify(d => d.PushRoomUpdate("101"), Times.Once);
+        }
+
 
         // 🔹 Delete Room Fail - Patient Present
         [Fact]
@@ -331,9 +303,6 @@ namespace HospitalRoomAPI.Tests.Services
                 r => r.SaveChangesAsync(),
                 Times.Never);
         }
-
-
-       
 
         [Fact]
         public async Task CreateRoom_Should_Fail_When_Duplicate_Room_Exists()

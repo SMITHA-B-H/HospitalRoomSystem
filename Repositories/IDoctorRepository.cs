@@ -14,5 +14,11 @@ namespace HospitalRoomAPI.Repositories
         Task<List<string>> GetDoctorRoomNumbersAsync(int doctorId);
 
         Task<bool> UpdateDisplayAsync(int id,string displayNumber);
+
+        Task<bool> HasAssignedPatientsAsync(int doctorId);
+
+        Task<string?> GetHospitalNameAsync(int hospitalId);
+
+        Task<Doctor?> GetByDisplayNumberAsync(string displayNumber);
     }
 }

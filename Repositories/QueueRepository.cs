@@ -25,41 +25,18 @@ namespace HospitalRoomAPI.Repositories
         // ALL QUEUE
         // =====================================
         public async Task<List<QueueEntry>>
-        GetAllQueueAsync()
+        GetDoctorQueueAsync(int doctorId)
         {
             return await _context.QueueEntries
-
-                .OrderBy(x => x.Stage)
-
-                .ThenBy(x => x.DoctorId)
-
-                .ThenBy(x =>
-                    x.Status == "Skipped"
-                    ? 9999
-                    : x.TokenNumber)
-
-                .ThenBy(x => x.CreatedAt)
-
+                .Where(x =>
+                    x.DoctorId == doctorId &&
+                    x.IsActive)
+                .Include(x => x.Doctor)
+                .OrderBy(x => x.TokenNumber)
                 .ToListAsync();
         }
 
-        // =====================================
-        // DOCTOR QUEUE
-        // =====================================
-        public async Task<List<QueueEntry>>
-            GetDoctorQueueAsync(int doctorId)
-        {
-            return await _context.QueueEntries
-                .Where(x => x.DoctorId == doctorId)
-
-                
-                   .OrderBy(x =>
-                      x.Status == "Skipped" ? 9999 : x.TokenNumber)
-
-                .ThenBy(x => x.CreatedAt)
-                .ToListAsync();
-        }
-
+      
         // =====================================
         // STAGE QUEUE
         // =====================================
@@ -143,25 +120,7 @@ namespace HospitalRoomAPI.Repositories
             await _context.SaveChangesAsync();
         }
 
-        //======================================
-
-        public async Task<ApiResponse<object>> ResetDoctorQueueAsync(int doctorId)
-        {
-            var queue = await _context.QueueEntries
-                .Where(x => x.DoctorId == doctorId)
-                .ToListAsync();
-
-            _context.QueueEntries.RemoveRange(queue);
-
-            await _context.SaveChangesAsync();
-
-            return new ApiResponse<object>
-            {
-                Success = true,
-                Message = "Queue Reset"
-            };
-        }
-
+       
 
         // =====================================
         public async Task<List<QueueEntry>>
@@ -175,7 +134,7 @@ namespace HospitalRoomAPI.Repositories
                 .Where(x =>
                     x.Doctor != null &&
                     x.Doctor.DisplayNumber ==
-                    displayNumber)
+                    displayNumber && x.IsActive)
 
                 .OrderBy(x =>
                     x.Status == "Skipped" ? 9999 : x.TokenNumber)
@@ -191,7 +150,7 @@ namespace HospitalRoomAPI.Repositories
         //===============================
 
         public async Task<List<CentralDisplayDto>>
-            GetCentralDisplayAsync()
+    GetCentralDisplayAsync()
         {
             var result = await _context.QueueEntries
 
@@ -199,9 +158,14 @@ namespace HospitalRoomAPI.Repositories
 
                 .Where(x =>
 
-                    x.Status == "InProgress" ||
+                    x.IsActive &&
 
-                    x.Status == "Waiting"
+                    (
+
+                        x.Status == "InProgress" ||
+
+                        x.Status == "Waiting"
+                    )
                 )
 
                 .OrderBy(x => x.DoctorId)
@@ -271,5 +235,65 @@ namespace HospitalRoomAPI.Repositories
 
             return result;
         }
+
+        //======================================
+        public async Task<int> GetLastActiveTokenByDoctorAsync(int doctorId,DateTime today)
+        {
+            var last =
+                await _context.QueueEntries
+                .Where(x =>
+                    x.DoctorId == doctorId &&
+                    x.CreatedAt.Date == today &&
+                    x.IsActive)
+                .OrderByDescending(x => x.TokenNumber)
+                .FirstOrDefaultAsync();
+
+            return last?.TokenNumber ?? 0;
+        }
+
+
+        //=========  
+        public async Task<ApiResponse<object>>
+        ResetDoctorQueueAsync(int doctorId)
+        {
+            var today = DateTime.Today;
+
+            var queue =
+                await _context.QueueEntries
+                .Where(x =>
+                    x.DoctorId == doctorId &&
+                    x.CreatedAt.Date == today &&
+                    x.IsActive)
+                .ToListAsync();
+
+            foreach (var item in queue)
+            {
+                item.IsActive = false;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Queue Reset Successfully"
+            };
+        }
+
+        // =====================================
+        // ALL QUEUE
+        // =====================================
+        public async Task<List<QueueEntry>>
+        GetAllQueueAsync()
+        {
+            return await _context.QueueEntries
+                .Where(x => x.IsActive)
+                .Include(x => x.Doctor)
+                .OrderBy(x => x.TokenNumber)
+                .ToListAsync();
+        }
+
+        
+
     }
 }

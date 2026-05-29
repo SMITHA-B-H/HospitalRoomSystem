@@ -28,5 +28,9 @@ namespace HospitalRoomAPI.Models
         public DateTime CreatedAt { get; set; } = DateTime.Now;
 
         public string DisplayNumber { get; set; } = "";
+
+        public string? PhoneNumber { get; set; } 
+
+        public bool IsActive { get; set; } = true;
     }
 }

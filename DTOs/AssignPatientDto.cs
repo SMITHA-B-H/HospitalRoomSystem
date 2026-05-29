@@ -8,5 +8,7 @@ namespace HospitalRoomAPI.DTOs
         public int Age { get; set; }
 
         public int DoctorId { get; set; }
+
+        public string? PatientType { get; set; }
     }
 }

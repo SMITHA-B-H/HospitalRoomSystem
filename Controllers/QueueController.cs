@@ -91,8 +91,11 @@ namespace HospitalRoomAPI.Controllers
                     doctorId);
 
             if (result == null)
-                return NotFound(
-                    "No patients waiting");
+                return Ok(new
+                {
+                    success = false,
+                    message = "No patients waiting"
+                });
 
             return Ok(result);
         }
@@ -218,13 +221,25 @@ namespace HospitalRoomAPI.Controllers
 
 
         //==========================
-        [HttpDelete("reset-doctor-queue/{doctorId}")]
-        public async Task<IActionResult> ResetDoctorQueue(int doctorId)
+        [HttpPut("reset-doctor-queue/{doctorId}")]
+        public async Task<IActionResult>
+        ResetDoctorQueue(int doctorId)
         {
             var result = await _service.ResetDoctorQueueAsync(doctorId);
 
-            if (!result.Success)
-                return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpPost("emergency/{id}")]
+        public async Task<IActionResult> 
+        Emergency(int id)
+        {
+            var result =
+                await _service
+                .EmergencyCallAsync(id);
+
+            if (result == null)
+                return NotFound();
 
             return Ok(result);
         }
